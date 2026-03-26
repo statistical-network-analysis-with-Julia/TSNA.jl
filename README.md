@@ -1,5 +1,17 @@
 # TSNA.jl
 
+
+[![Network Analysis](https://img.shields.io/badge/Network-Analysis-orange.svg)](https://github.com/statistical-network-analysis-with-Julia/TSNA.jl)
+[![Build Status](https://github.com/statistical-network-analysis-with-Julia/TSNA.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/statistical-network-analysis-with-Julia/TSNA.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://statistical-network-analysis-with-Julia.github.io/TSNA.jl/stable/)
+[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://statistical-network-analysis-with-Julia.github.io/TSNA.jl/dev/)
+[![Julia](https://img.shields.io/badge/Julia-1.9+-purple.svg)](https://julialang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+<p align="center">
+  <img src="docs/src/assets/logo.svg" alt="TSNA.jl icon" width="160">
+</p>
+
 Temporal Social Network Analysis for Julia.
 
 ## Overview
@@ -12,7 +24,7 @@ This package is a Julia port of the R `tsna` package from the StatNet collection
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/Statistical-network-analysis-with-Julia/TSNA.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/TSNA.jl")
 ```
 
 ## Features
@@ -167,6 +179,21 @@ for t in 10.0:10.0:100.0
 end
 ```
 
+## Documentation
+
+For more detailed documentation, see:
+
+- [Stable Documentation](https://statistical-network-analysis-with-Julia.github.io/TSNA.jl/stable/)
+- [Development Documentation](https://statistical-network-analysis-with-Julia.github.io/TSNA.jl/dev/)
+
+## References
+
+1. Bender-deMoll, S., Morris, M. (2019). tsna: Tools for Temporal Social Network Analysis. R package, StatNet collection.
+
+2. Moody, J. (2002). The importance of relationship timing for diffusion. *Social Forces*, 81(1), 25-56.
+
+3. Holme, P., Saramaki, J. (2012). Temporal networks. *Physics Reports*, 519(3), 97-125.
+
 ## License
 
-MIT License
+MIT License - see [LICENSE](LICENSE) for details.

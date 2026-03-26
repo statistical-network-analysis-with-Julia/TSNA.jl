@@ -7,9 +7,9 @@ TSNA = "f6a7b8c9-d0e1-2345-f678-901234567890"
 
 [sources]
 TSNA = {path = ".."}
-Network = {path = "../../Network"}
-NetworkDynamic = {path = "../../NetworkDynamic"}
-SNA = {path = "../../SNA"}
+Network = {path = "../../Network.jl"}
+NetworkDynamic = {path = "../../NetworkDynamic.jl"}
+SNA = {path = "../../SNA.jl"}
 
 [compat]
 Documenter = "1"

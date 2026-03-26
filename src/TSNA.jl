@@ -32,7 +32,7 @@ export tEdgePersistence, tTurnover
 
 # Contact sequences
 export Contact, ContactSequence, as_contact_sequence
-export tieDecay, tieVolatility
+export tieDecay
 
 # Aggregation
 export tSnaStats, tAggregate
