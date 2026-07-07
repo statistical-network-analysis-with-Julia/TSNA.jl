@@ -19,17 +19,17 @@ The package is a single-file module at `src/TSNA.jl` with no internal submodules
 
 - **Temporal Path Types** -- `tPath` and `Contact`/`ContactSequence` structs
 - **Temporal Measures at a Point** -- `tDegree`, `tDensity`, `tReciprocity`, `tTransitivity`, `tBetweenness`, `tCloseness`, `tEigenvector`, `tPagerank` (all take a `DynamicNetwork` and a time point)
-- **Temporal Path Finding** -- `temporalDistance`, `forwardReachableSet`, `backwardReachableSet`, `shortestTemporalPath` (BFS-style algorithms over edge spells)
-- **Duration and Persistence Metrics** -- `tEdgeDuration`, `tVertexDuration`, `tEdgePersistence`, `tTurnover`, `tieDecay`
+- **Temporal Path Finding** -- `earliestArrival` (Dijkstra label-setting with INTERVAL semantics: an edge spell [onset, terminus) is boardable at any instant in it, mid-spell boarding allowed, spells active before start_time count, point spells [t,t) usable exactly at t), `temporalDistance` (returns `nothing` when unreachable), `forwardReachableSet`, `backwardReachableSet` (exact dual, computed via forward searches), `temporalPath` (earliest-arrival path; `shortestTemporalPath` is an alias — NOT fewest hops)
+- **Duration and Turnover** -- `tEdgeDuration`/`tVertexDuration` (per-spell default matching tsna::edgeDuration, `mode=:total` for per-element sums), `tEdgeFormation`/`tEdgeDissolution` (spell onset/terminus EVENT counts in a window; right-censored termini excluded), `tTurnover` (per-window event counts+rates, consistent NamedTuple shape), `tieDecay`
 - **Aggregation and Time Series** -- `tSnaStats`, `windowSnaStats`, `tAggregate`
 
-All temporal centrality functions work by extracting a static network snapshot at a given time via `network_extract(dnet, at)` from NetworkDynamic, then delegating to Graphs.jl algorithms. Path/reachability functions operate directly on `dnet.edge_spells`.
+All point-measure functions extract snapshots with `network_extract(dnet, at; retain_all_vertices=true)` — vectors are ALWAYS length nv(dnet), indexed by the original vertex IDs (inactive vertices score 0) — and delegate to SNA.jl (qualified `SNA.` calls; Graphs also exports several of these names). Path/reachability functions operate directly on `dnet.edge_spells`.
 
 ## Key Dependencies
 
 - **NetworkDynamic.jl** (local sibling) -- provides `DynamicNetwork`, `network_extract`, `network_collapse`, `active_edges`, edge/vertex spell storage
 - **Network.jl** (local sibling) -- base network type
-- **SNA.jl** (local sibling) -- static SNA measures
+- **SNA.jl** (local sibling) -- static SNA measures (centralities/transitivity delegate to it; call sites must qualify `SNA.` because Graphs exports colliding names)
 - **Graphs.jl** -- graph algorithms (centrality, clustering)
 - **StatsBase.jl** / **Statistics** -- statistical summaries
 

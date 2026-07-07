@@ -1,42 +1,48 @@
 """
     TSNA.jl - Temporal Social Network Analysis
 
-Provides descriptive analysis tools for dynamic networks including
-temporal centrality, reachability, path analysis, and duration metrics.
+Tools for analyzing dynamic networks: time-respecting paths and
+reachability with full interval-spell semantics, temporal centrality
+measures, duration/turnover metrics, and aggregation.
+
+Time-respecting paths use the interval model: an edge with spell
+`[onset, terminus)` can be traversed at any instant `t` with
+`onset ≤ t < terminus`, so a walker may board mid-spell and waiting at a
+vertex is free. Point spells `[t, t)` are instantaneous contacts usable
+exactly at `t`.
 
 Port of the R tsna package from the StatNet collection.
 """
 module TSNA
 
+using Dates
 using Graphs
-using LinearAlgebra
 using Network
 using NetworkDynamic
 using SNA
 using Statistics
-using StatsBase
 
-# Temporal paths
-export tPath, tReachable
-export temporalDistance, forwardReachableSet, backwardReachableSet
+# Temporal paths and reachability
+export tPath, path_duration
+export temporalDistance, earliestArrival
+export forwardReachableSet, backwardReachableSet
 export temporalPath, shortestTemporalPath
 
-# Temporal centrality
+# Point-in-time measures
 export tDegree, tBetweenness, tCloseness
 export tEigenvector, tPagerank
-
-# Temporal network measures
 export tDensity, tReciprocity, tTransitivity
+
+# Duration and turnover
 export tEdgeDuration, tVertexDuration
-export tEdgePersistence, tTurnover
+export tEdgeFormation, tEdgeDissolution, tTurnover
+export tieDecay
 
 # Contact sequences
 export Contact, ContactSequence, as_contact_sequence
-export tieDecay
 
-# Aggregation
-export tSnaStats, tAggregate
-export windowSnaStats
+# Aggregation and time series
+export tSnaStats, windowSnaStats, tAggregate
 
 # =============================================================================
 # Temporal Path Types
@@ -45,14 +51,8 @@ export windowSnaStats
 """
     tPath{T, Time}
 
-A temporal path through a dynamic network.
-
-A valid temporal path must have non-decreasing times along the path.
-
-# Fields
-- `vertices::Vector{T}`: Sequence of vertices
-- `times::Vector{Time}`: Times at which each transition occurs
-- `edges::Vector{Tuple{T, T}}`: Edges traversed
+A time-respecting path through a dynamic network: `times[k]` is the
+instant edge `edges[k]` is traversed, and times are non-decreasing.
 """
 struct tPath{T, Time}
     vertices::Vector{T}
@@ -85,14 +85,18 @@ function Base.show(io::IO, p::tPath)
 end
 
 """
-    path_duration(p::tPath) -> Time
+    path_duration(p::tPath) -> Time difference
 
-Get the total duration of a temporal path.
+Elapsed time between the first and last traversal of the path.
 """
 function path_duration(p::tPath{T, Time}) where {T, Time}
-    isempty(p.times) && return zero(Time)
+    isempty(p.times) && return _zero_duration(Time)
     return p.times[end] - p.times[1]
 end
+
+_zero_duration(::Type{Time}) where Time<:Number = zero(Time)
+_zero_duration(::Type{DateTime}) = Millisecond(0)
+_zero_duration(::Type{Date}) = Day(0)
 
 # =============================================================================
 # Contact Sequence
@@ -101,19 +105,19 @@ end
 """
     Contact{T, Time}
 
-A single contact (edge activation) in a temporal network.
+A single contact (edge activation spell) in a temporal network.
 """
 struct Contact{T, Time}
     source::T
     target::T
     time::Time
-    duration::Time
+    duration
 end
 
 """
     ContactSequence{T, Time}
 
-A sequence of contacts ordered by time.
+A sequence of contacts ordered by onset time.
 """
 struct ContactSequence{T, Time}
     contacts::Vector{Contact{T, Time}}
@@ -134,469 +138,446 @@ Base.iterate(cs::ContactSequence, state=1) =
 """
     as_contact_sequence(dnet::DynamicNetwork) -> ContactSequence
 
-Convert a dynamic network to a contact sequence.
+Convert a dynamic network's edge spells to a contact sequence.
 """
 function as_contact_sequence(dnet::DynamicNetwork{T, Time}) where {T, Time}
     contacts = Contact{T, Time}[]
 
     for ((i, j), spells) in dnet.edge_spells
         for spell in spells
-            push!(contacts, Contact{T, Time}(i, j, spell.onset, spell.terminus - spell.onset))
+            push!(contacts, Contact{T, Time}(i, j, spell.onset,
+                                             spell.terminus - spell.onset))
         end
     end
 
-    return ContactSequence(contacts, nv(dnet); directed=is_directed(dnet))
+    return ContactSequence(contacts, Int(nv(dnet)); directed=is_directed(dnet))
 end
+
+# =============================================================================
+# Temporal Path Finding (interval semantics)
+# =============================================================================
+
+# Per-vertex outgoing contacts: v -> [(neighbor, spell), ...]. For
+# undirected networks each spell is listed from both endpoints.
+function _out_contacts(dnet::DynamicNetwork{T, Time}) where {T, Time}
+    out = Dict{T, Vector{Tuple{T, Spell{Time}}}}()
+    directed = is_directed(dnet)
+    for ((i, j), spells) in dnet.edge_spells
+        for spell in spells
+            push!(get!(out, i, Tuple{T, Spell{Time}}[]), (j, spell))
+            if !directed
+                push!(get!(out, j, Tuple{T, Spell{Time}}[]), (i, spell))
+            end
+        end
+    end
+    return out
+end
+
+# Can an edge with `spell` be boarded by a walker present from time `t`,
+# before `end_time`? Returns the boarding instant or nothing.
+function _board_time(spell, t, end_time)
+    if spell.onset == spell.terminus
+        # Point contact: usable exactly at its instant
+        (t <= spell.onset && spell.onset < end_time) && return spell.onset
+        return nothing
+    end
+    t >= spell.terminus && return nothing
+    depart = max(t, spell.onset)
+    depart < end_time || return nothing
+    return depart
+end
+
+"""
+    earliestArrival(dnet, source, start_time; end_time=observation end)
+        -> (arrival::Dict, parent::Dict)
+
+Earliest-arrival times from `source` to every vertex, starting at
+`start_time`, under interval semantics: an edge spell `[onset, terminus)`
+is traversable at any instant in it (boarding mid-spell is allowed;
+spells that began before `start_time` but are still active count).
+Implemented as a Dijkstra-style label-setting search, so chains of
+simultaneous (equal-onset) spells are handled correctly.
+
+Returns the arrival-time dictionary (vertices absent = unreachable) and
+the parent map `(vertex => (predecessor, boarding time))` for path
+reconstruction.
+"""
+function earliestArrival(dnet::DynamicNetwork{T, Time}, source::T, start_time;
+                         end_time=dnet.observation_period[2]) where {T, Time}
+    start_time = convert(Time, start_time)
+    end_time = convert(Time, end_time)
+    out = _out_contacts(dnet)
+
+    arrival = Dict{T, Time}(source => start_time)
+    parent = Dict{T, Tuple{T, Time}}()
+    settled = Set{T}()
+
+    # Label-setting search (Dijkstra with linear min-scan; boarding times
+    # never precede the label being settled, so labels are final)
+    while true
+        v = nothing
+        best = nothing
+        for (u, t) in arrival
+            u in settled && continue
+            if isnothing(best) || t < best
+                v, best = u, t
+            end
+        end
+        isnothing(v) && break
+        push!(settled, v)
+        t = arrival[v]
+
+        for (w, spell) in get(out, v, Tuple{T, Spell{Time}}[])
+            w in settled && continue
+            depart = _board_time(spell, t, end_time)
+            isnothing(depart) && continue
+            if !haskey(arrival, w) || depart < arrival[w]
+                arrival[w] = depart
+                parent[w] = (v, depart)
+            end
+        end
+    end
+
+    return arrival, parent
+end
+
+"""
+    temporalDistance(dnet, source, target, start_time; end_time=...)
+        -> elapsed time or nothing
+
+Elapsed time of the earliest time-respecting path from `source` to
+`target` departing at `start_time` (arrival − start). Returns `nothing`
+when no path exists within the window.
+"""
+function temporalDistance(dnet::DynamicNetwork{T, Time}, source::T, target::T,
+                          start_time; end_time=dnet.observation_period[2]) where {T, Time}
+    arrival, _ = earliestArrival(dnet, source, start_time; end_time=end_time)
+    haskey(arrival, target) || return nothing
+    return arrival[target] - convert(Time, start_time)
+end
+
+"""
+    forwardReachableSet(dnet, source, start_time; end_time=...) -> Vector
+
+Vertices reachable from `source` by a time-respecting path departing at
+or after `start_time` and arriving before `end_time` (`source` included).
+"""
+function forwardReachableSet(dnet::DynamicNetwork{T, Time}, source::T, start_time;
+                             end_time=dnet.observation_period[2]) where {T, Time}
+    arrival, _ = earliestArrival(dnet, source, start_time; end_time=end_time)
+    return sort(collect(keys(arrival)))
+end
+
+"""
+    backwardReachableSet(dnet, target, end_time; start_time=...) -> Vector
+
+Vertices from which `target` can be reached by a time-respecting path in
+`[start_time, end_time)` — the exact dual of
+[`forwardReachableSet`](@ref) (computed by forward searches, so both use
+identical traversal semantics).
+"""
+function backwardReachableSet(dnet::DynamicNetwork{T, Time}, target::T, end_time;
+                              start_time=dnet.observation_period[1]) where {T, Time}
+    reachable = T[]
+    for v in 1:nv(dnet)
+        vT = T(v)
+        if vT == target
+            push!(reachable, vT)
+            continue
+        end
+        arrival, _ = earliestArrival(dnet, vT, start_time; end_time=end_time)
+        haskey(arrival, target) && push!(reachable, vT)
+    end
+    return reachable
+end
+
+"""
+    temporalPath(dnet, source, target, start_time; end_time=...)
+        -> Union{tPath, Nothing}
+
+The **earliest-arrival** time-respecting path from `source` to `target`
+departing at `start_time` (not necessarily the fewest-hops path).
+Returns `nothing` when no path exists.
+"""
+function temporalPath(dnet::DynamicNetwork{T, Time}, source::T, target::T,
+                      start_time; end_time=dnet.observation_period[2]) where {T, Time}
+    arrival, parent = earliestArrival(dnet, source, start_time; end_time=end_time)
+    haskey(arrival, target) || return nothing
+
+    verts = T[target]
+    times = Time[]
+    path_edges = Tuple{T, T}[]
+    v = target
+    while v != source
+        u, t = parent[v]
+        pushfirst!(verts, u)
+        pushfirst!(times, t)
+        pushfirst!(path_edges, (u, v))
+        v = u
+    end
+
+    return tPath(verts, times, path_edges)
+end
+
+"""
+    shortestTemporalPath(dnet, source, target, start_time; kwargs...)
+
+Alias for [`temporalPath`](@ref): the *earliest-arrival* path (kept for
+API compatibility with earlier versions; note this is not the fewest-hops
+path).
+"""
+const shortestTemporalPath = temporalPath
 
 # =============================================================================
 # Temporal Measures at a Point
 # =============================================================================
+#
+# Snapshots retain every vertex (retain_all_vertices=true), so all
+# per-vertex vectors are indexed by the dynamic network's own vertex IDs
+# and always have length nv(dnet) — even when some vertices are inactive.
+
+_snapshot(dnet, at) = network_extract(dnet, at; retain_all_vertices=true)
 
 """
-    tDegree(dnet::DynamicNetwork, at::Time; mode=:total) -> Vector{Int}
+    tDegree(dnet::DynamicNetwork, at; mode=:total) -> Vector{Float64}
 
-Compute degree centrality at a specific time point.
-
-# Arguments
-- `dnet`: Dynamic network
-- `at`: Time point
-- `mode`: :in, :out, or :total for directed networks
+Degree at time `at`, indexed by the network's vertex IDs (inactive
+vertices score 0).
 """
-function tDegree(dnet::DynamicNetwork{T, Time}, at::Time;
-                 mode::Symbol=:total) where {T, Time}
-    snapshot = network_extract(dnet, at)
-
-    if mode == :total
-        return [Graphs.degree(snapshot, v) for v in vertices(snapshot)]
-    elseif mode == :in
-        return [Graphs.indegree(snapshot, v) for v in vertices(snapshot)]
-    elseif mode == :out
-        return [Graphs.outdegree(snapshot, v) for v in vertices(snapshot)]
-    else
-        throw(ArgumentError("mode must be :in, :out, or :total"))
-    end
+function tDegree(dnet::DynamicNetwork{T, Time}, at; mode::Symbol=:total) where {T, Time}
+    return SNA.degree_centrality(_snapshot(dnet, at); mode=mode)
 end
 
 """
-    tDensity(dnet::DynamicNetwork, at::Time) -> Float64
+    tBetweenness(dnet::DynamicNetwork, at; normalized=false) -> Vector{Float64}
 
-Compute network density at a specific time point.
+Betweenness centrality at time `at` (raw scores by default, as in SNA.jl).
 """
-function tDensity(dnet::DynamicNetwork{T, Time}, at::Time) where {T, Time}
-    snapshot = network_extract(dnet, at)
-    n = nv(snapshot)
-    n <= 1 && return 0.0
+tBetweenness(dnet::DynamicNetwork, at; normalized::Bool=false) =
+    SNA.betweenness_centrality(_snapshot(dnet, at); normalized=normalized)
 
-    m = ne(snapshot)
-    max_edges = is_directed(snapshot) ? n * (n - 1) : n * (n - 1) ÷ 2
-    return m / max_edges
+"""
+    tCloseness(dnet::DynamicNetwork, at) -> Vector{Float64}
+"""
+tCloseness(dnet::DynamicNetwork, at) = SNA.closeness_centrality(_snapshot(dnet, at))
+
+"""
+    tEigenvector(dnet::DynamicNetwork, at) -> Vector{Float64}
+"""
+tEigenvector(dnet::DynamicNetwork, at) = SNA.eigenvector_centrality(_snapshot(dnet, at))
+
+"""
+    tPagerank(dnet::DynamicNetwork, at; damping=0.85) -> Vector{Float64}
+"""
+tPagerank(dnet::DynamicNetwork, at; damping::Float64=0.85) =
+    SNA.pagerank(_snapshot(dnet, at); α=damping)
+
+"""
+    tDensity(dnet::DynamicNetwork, at) -> Float64
+
+Density at time `at`, over all `nv(dnet)` vertices (not just the active
+ones).
+"""
+function tDensity(dnet::DynamicNetwork, at)
+    return network_density(_snapshot(dnet, at))
 end
 
 """
-    tReciprocity(dnet::DynamicNetwork, at::Time) -> Float64
+    tReciprocity(dnet::DynamicNetwork, at) -> Float64
 
-Compute reciprocity at a specific time point (directed networks).
+Edgewise reciprocity at time `at` (fraction of edges that are
+reciprocated).
 """
-function tReciprocity(dnet::DynamicNetwork{T, Time}, at::Time) where {T, Time}
-    snapshot = network_extract(dnet, at)
+function tReciprocity(dnet::DynamicNetwork, at)
+    return _snapshot_reciprocity(_snapshot(dnet, at))
+end
+
+function _snapshot_reciprocity(snapshot)
     !is_directed(snapshot) && return 1.0
-
     n_edges = ne(snapshot)
     n_edges == 0 && return 0.0
 
     mutual = 0
     for e in edges(snapshot)
-        if has_edge(snapshot, dst(e), src(e))
-            mutual += 1
-        end
+        has_edge(snapshot, dst(e), src(e)) && (mutual += 1)
     end
-
     return mutual / n_edges
 end
 
 """
-    tTransitivity(dnet::DynamicNetwork, at::Time) -> Float64
+    tTransitivity(dnet::DynamicNetwork, at) -> Float64
 
-Compute transitivity (clustering coefficient) at a specific time point.
+Weak transitivity at time `at` (see `SNA.transitivity`).
 """
-function tTransitivity(dnet::DynamicNetwork{T, Time}, at::Time) where {T, Time}
-    snapshot = network_extract(dnet, at)
-    return Graphs.global_clustering_coefficient(snapshot)
-end
-
-"""
-    tBetweenness(dnet::DynamicNetwork, at::Time; normalized=true) -> Vector{Float64}
-
-Compute betweenness centrality at a specific time point.
-"""
-function tBetweenness(dnet::DynamicNetwork{T, Time}, at::Time;
-                      normalized::Bool=true) where {T, Time}
-    snapshot = network_extract(dnet, at)
-    bc = Graphs.betweenness_centrality(snapshot; normalize=normalized)
-    return bc
-end
-
-"""
-    tCloseness(dnet::DynamicNetwork, at::Time) -> Vector{Float64}
-
-Compute closeness centrality at a specific time point.
-"""
-function tCloseness(dnet::DynamicNetwork{T, Time}, at::Time) where {T, Time}
-    snapshot = network_extract(dnet, at)
-    return Graphs.closeness_centrality(snapshot)
-end
-
-"""
-    tEigenvector(dnet::DynamicNetwork, at::Time) -> Vector{Float64}
-
-Compute eigenvector centrality at a specific time point.
-"""
-function tEigenvector(dnet::DynamicNetwork{T, Time}, at::Time) where {T, Time}
-    snapshot = network_extract(dnet, at)
-    return Graphs.eigenvector_centrality(snapshot)
-end
-
-"""
-    tPagerank(dnet::DynamicNetwork, at::Time; damping=0.85) -> Vector{Float64}
-
-Compute PageRank at a specific time point.
-"""
-function tPagerank(dnet::DynamicNetwork{T, Time}, at::Time;
-                   damping::Float64=0.85) where {T, Time}
-    snapshot = network_extract(dnet, at)
-    return Graphs.pagerank(snapshot, damping)
-end
+tTransitivity(dnet::DynamicNetwork, at) = SNA.transitivity(_snapshot(dnet, at))
 
 # =============================================================================
-# Temporal Path Finding
+# Duration and Turnover Metrics
 # =============================================================================
 
 """
-    temporalDistance(dnet::DynamicNetwork, source, target, start_time; kwargs...) -> Time
+    tEdgeDuration(dnet::DynamicNetwork; mode=:spell, aggregate=:mean)
 
-Find the earliest arrival time from source to target starting at start_time.
-Returns Inf if no path exists.
-"""
-function temporalDistance(dnet::DynamicNetwork{T, Time}, source::T, target::T,
-                          start_time::Time) where {T, Time}
-    source == target && return start_time
+Edge activity durations.
 
-    # BFS-style search through time
-    n = nv(dnet)
-    earliest_arrival = fill(typemax(Time), n)
-    earliest_arrival[source] = start_time
+- `mode=:spell` (default, matching `tsna::edgeDuration`): each activity
+  spell contributes its own duration `terminus − onset`.
+- `mode=:total`: spells of the same edge are summed first (total active
+  time per edge).
 
-    # Sort edge spells by onset time
-    edge_events = Tuple{Time, T, T, Time}[]  # (onset, src, dst, terminus)
-    for ((i, j), spells) in dnet.edge_spells
-        for spell in spells
-            if spell.onset >= start_time
-                push!(edge_events, (spell.onset, i, j, spell.terminus))
-            end
-        end
-    end
-    sort!(edge_events, by=x -> x[1])
-
-    # Process events in time order
-    for (onset, i, j, terminus) in edge_events
-        if earliest_arrival[i] <= onset
-            # Can traverse this edge
-            if onset < earliest_arrival[j]
-                earliest_arrival[j] = onset
-            end
-        end
-    end
-
-    return earliest_arrival[target] == typemax(Time) ? convert(Time, Inf) : earliest_arrival[target]
-end
-
-"""
-    forwardReachableSet(dnet::DynamicNetwork, source, start_time) -> Set{T}
-
-Find all vertices reachable from source starting at start_time.
-"""
-function forwardReachableSet(dnet::DynamicNetwork{T, Time}, source::T,
-                             start_time::Time) where {T, Time}
-    n = nv(dnet)
-    reachable = Set{T}([source])
-    earliest_arrival = fill(typemax(Time), n)
-    earliest_arrival[source] = start_time
-
-    # Sort edges by onset
-    edge_events = Tuple{Time, T, T}[]
-    for ((i, j), spells) in dnet.edge_spells
-        for spell in spells
-            if spell.onset >= start_time
-                push!(edge_events, (spell.onset, i, j))
-            end
-        end
-    end
-    sort!(edge_events, by=x -> x[1])
-
-    for (onset, i, j) in edge_events
-        if earliest_arrival[i] <= onset
-            if onset < earliest_arrival[j]
-                earliest_arrival[j] = onset
-                push!(reachable, j)
-            end
-        end
-    end
-
-    return reachable
-end
-
-"""
-    backwardReachableSet(dnet::DynamicNetwork, target, end_time) -> Set{T}
-
-Find all vertices that can reach target by end_time.
-"""
-function backwardReachableSet(dnet::DynamicNetwork{T, Time}, target::T,
-                              end_time::Time) where {T, Time}
-    n = nv(dnet)
-    reachable = Set{T}([target])
-    latest_departure = fill(typemin(Time), n)
-    latest_departure[target] = end_time
-
-    # Sort edges by terminus (decreasing)
-    edge_events = Tuple{Time, T, T}[]
-    for ((i, j), spells) in dnet.edge_spells
-        for spell in spells
-            if spell.terminus <= end_time
-                push!(edge_events, (spell.terminus, i, j))
-            end
-        end
-    end
-    sort!(edge_events, by=x -> -x[1])  # Decreasing order
-
-    for (terminus, i, j) in edge_events
-        if latest_departure[j] >= terminus
-            if terminus > latest_departure[i]
-                latest_departure[i] = terminus
-                push!(reachable, i)
-            end
-        end
-    end
-
-    return reachable
-end
-
-"""
-    shortestTemporalPath(dnet::DynamicNetwork, source, target, start_time) -> Union{tPath, Nothing}
-
-Find a shortest temporal path from source to target.
-"""
-function shortestTemporalPath(dnet::DynamicNetwork{T, Time}, source::T, target::T,
-                              start_time::Time) where {T, Time}
-    source == target && return tPath([source], Time[], Tuple{T,T}[])
-
-    n = nv(dnet)
-    earliest_arrival = fill(typemax(Time), n)
-    predecessor = fill((T(0), T(0), typemin(Time)), n)  # (prev_vertex, via_edge_src, time)
-    earliest_arrival[source] = start_time
-
-    # Sort edges by onset
-    edge_events = Tuple{Time, T, T, Time}[]
-    for ((i, j), spells) in dnet.edge_spells
-        for spell in spells
-            if spell.onset >= start_time
-                push!(edge_events, (spell.onset, i, j, spell.terminus))
-            end
-        end
-    end
-    sort!(edge_events, by=x -> x[1])
-
-    for (onset, i, j, terminus) in edge_events
-        if earliest_arrival[i] <= onset && onset < earliest_arrival[j]
-            earliest_arrival[j] = onset
-            predecessor[j] = (i, i, onset)
-        end
-    end
-
-    earliest_arrival[target] == typemax(Time) && return nothing
-
-    # Reconstruct path
-    vertices = T[target]
-    times = Time[]
-    edges = Tuple{T,T}[]
-
-    current = target
-    while current != source
-        prev, _, time = predecessor[current]
-        prev == 0 && return nothing
-        pushfirst!(vertices, prev)
-        pushfirst!(times, time)
-        pushfirst!(edges, (prev, current))
-        current = prev
-    end
-
-    return tPath(vertices, times, edges)
-end
-
-# =============================================================================
-# Duration and Persistence Metrics
-# =============================================================================
-
-"""
-    tEdgeDuration(dnet::DynamicNetwork; aggregate=:mean) -> Union{Float64, Dict}
-
-Compute edge duration statistics.
-
-# Arguments
-- `aggregate`: :mean, :median, :total, or :all for per-edge values
+`aggregate` is `:mean`, `:median`, `:total`, or `:all` (raw vector).
+Censoring flags are ignored (durations are observed, not corrected).
 """
 function tEdgeDuration(dnet::DynamicNetwork{T, Time};
-                       aggregate::Symbol=:mean) where {T, Time}
-    durations = Dict{Tuple{T,T}, Time}()
-
-    for (edge, spells) in dnet.edge_spells
-        total_dur = sum(spell.terminus - spell.onset for spell in spells; init=zero(Time))
-        durations[edge] = total_dur
-    end
-
-    isempty(durations) && return 0.0
-
-    if aggregate == :all
-        return durations
-    elseif aggregate == :mean
-        return mean(values(durations))
-    elseif aggregate == :median
-        return median(collect(values(durations)))
-    elseif aggregate == :total
-        return sum(values(durations))
-    else
-        throw(ArgumentError("aggregate must be :mean, :median, :total, or :all"))
-    end
-end
-
-"""
-    tVertexDuration(dnet::DynamicNetwork; aggregate=:mean) -> Union{Float64, Vector}
-
-Compute vertex activity duration statistics.
-"""
-function tVertexDuration(dnet::DynamicNetwork{T, Time};
-                         aggregate::Symbol=:mean) where {T, Time}
-    durations = zeros(Time, nv(dnet))
-
-    for (v, spells) in dnet.vertex_spells
-        durations[v] = sum(spell.terminus - spell.onset for spell in spells; init=zero(Time))
-    end
-
-    if aggregate == :all
-        return durations
-    elseif aggregate == :mean
-        return mean(durations)
-    elseif aggregate == :median
-        return median(durations)
-    elseif aggregate == :total
-        return sum(durations)
-    else
-        throw(ArgumentError("aggregate must be :mean, :median, :total, or :all"))
-    end
-end
-
-"""
-    tEdgePersistence(dnet::DynamicNetwork, window_size::Time) -> Float64
-
-Compute the proportion of edges that persist across time windows.
-"""
-function tEdgePersistence(dnet::DynamicNetwork{T, Time}, window_size::Time) where {T, Time}
-    start_time, end_time = dnet.observation_period
-    n_windows = ceil(Int, (end_time - start_time) / window_size)
-    n_windows < 2 && return 1.0
-
-    persisted = 0
-    total = 0
-
-    for w in 1:(n_windows - 1)
-        t1 = start_time + (w - 1) * window_size
-        t2 = start_time + w * window_size
-
-        edges_t1 = active_edges(dnet, t1)
-        edges_t2 = active_edges(dnet, t2)
-
-        for e in edges_t1
-            total += 1
-            if e in edges_t2
-                persisted += 1
-            end
-        end
-    end
-
-    return total == 0 ? 1.0 : persisted / total
-end
-
-"""
-    tTurnover(dnet::DynamicNetwork, window_size::Time) -> NamedTuple
-
-Compute edge turnover (formation and dissolution rates).
-"""
-function tTurnover(dnet::DynamicNetwork{T, Time}, window_size::Time) where {T, Time}
-    start_time, end_time = dnet.observation_period
-    n_windows = ceil(Int, (end_time - start_time) / window_size)
-    n_windows < 2 && return (formation_rate=0.0, dissolution_rate=0.0)
-
-    formations = 0
-    dissolutions = 0
-    at_risk_form = 0
-    at_risk_diss = 0
-
-    for w in 1:(n_windows - 1)
-        t1 = start_time + (w - 1) * window_size
-        t2 = start_time + w * window_size
-
-        edges_t1 = Set(active_edges(dnet, t1))
-        edges_t2 = Set(active_edges(dnet, t2))
-
-        # New edges at t2
-        new_edges = setdiff(edges_t2, edges_t1)
-        formations += length(new_edges)
-
-        # Lost edges
-        lost_edges = setdiff(edges_t1, edges_t2)
-        dissolutions += length(lost_edges)
-
-        # At-risk counts
-        n = nv(dnet)
-        max_possible = is_directed(dnet) ? n * (n - 1) : n * (n - 1) ÷ 2
-        at_risk_form += max_possible - length(edges_t1)
-        at_risk_diss += length(edges_t1)
-    end
-
-    formation_rate = at_risk_form == 0 ? 0.0 : formations / at_risk_form
-    dissolution_rate = at_risk_diss == 0 ? 0.0 : dissolutions / at_risk_diss
-
-    return (
-        formation_rate=formation_rate,
-        dissolution_rate=dissolution_rate,
-        n_formations=formations,
-        n_dissolutions=dissolutions
-    )
-end
-
-"""
-    tieDecay(dnet::DynamicNetwork; method=:exponential) -> Float64
-
-Estimate tie decay rate from observed data.
-"""
-function tieDecay(dnet::DynamicNetwork{T, Time}; method::Symbol=:exponential) where {T, Time}
+                       mode::Symbol=:spell, aggregate::Symbol=:mean) where {T, Time}
     durations = Float64[]
 
-    for (edge, spells) in dnet.edge_spells
-        for spell in spells
-            push!(durations, spell.terminus - spell.onset)
+    if mode == :spell
+        for spells in values(dnet.edge_spells), s in spells
+            push!(durations, _dur(s.terminus - s.onset))
         end
-    end
-
-    isempty(durations) && return 0.0
-
-    if method == :exponential
-        # MLE for exponential distribution rate parameter
-        return 1.0 / mean(durations)
-    elseif method == :halflife
-        return log(2) / mean(durations)
+    elseif mode == :total
+        for spells in values(dnet.edge_spells)
+            push!(durations, sum(_dur(s.terminus - s.onset) for s in spells; init=0.0))
+        end
     else
-        throw(ArgumentError("method must be :exponential or :halflife"))
+        throw(ArgumentError("mode must be :spell or :total"))
     end
+
+    return _aggregate(durations, aggregate)
+end
+
+"""
+    tVertexDuration(dnet::DynamicNetwork; mode=:spell, aggregate=:mean)
+
+Vertex activity durations (see [`tEdgeDuration`](@ref)).
+"""
+function tVertexDuration(dnet::DynamicNetwork{T, Time};
+                         mode::Symbol=:spell, aggregate::Symbol=:mean) where {T, Time}
+    durations = Float64[]
+
+    if mode == :spell
+        for spells in values(dnet.vertex_spells), s in spells
+            push!(durations, _dur(s.terminus - s.onset))
+        end
+    elseif mode == :total
+        for spells in values(dnet.vertex_spells)
+            push!(durations, sum(_dur(s.terminus - s.onset) for s in spells; init=0.0))
+        end
+    else
+        throw(ArgumentError("mode must be :spell or :total"))
+    end
+
+    return _aggregate(durations, aggregate)
+end
+
+_dur(d) = Float64(NetworkDynamic._elapsed_seconds(d))
+_dur(d::Real) = Float64(d)
+
+function _aggregate(values::Vector{Float64}, aggregate::Symbol)
+    aggregate == :all && return values
+    isempty(values) && return NaN
+    aggregate == :mean && return mean(values)
+    aggregate == :median && return median(values)
+    aggregate == :total && return sum(values)
+    throw(ArgumentError("aggregate must be :mean, :median, :total, or :all"))
+end
+
+"""
+    tEdgeFormation(dnet::DynamicNetwork, onset, terminus) -> Int
+
+The number of edge-spell **onset events** in `[onset, terminus)` —
+formations, counted as events like `tsna::tEdgeFormationAt` (not by
+comparing point samples).
+"""
+function tEdgeFormation(dnet::DynamicNetwork{T, Time}, onset, terminus) where {T, Time}
+    onset, terminus = convert(Time, onset), convert(Time, terminus)
+    count = 0
+    for spells in values(dnet.edge_spells), s in spells
+        onset <= s.onset < terminus && (count += 1)
+    end
+    return count
+end
+
+"""
+    tEdgeDissolution(dnet::DynamicNetwork, onset, terminus) -> Int
+
+The number of edge-spell **terminus events** in `[onset, terminus)` —
+dissolutions counted as events. Right-censored spells (terminus flagged
+censored) are excluded.
+"""
+function tEdgeDissolution(dnet::DynamicNetwork{T, Time}, onset, terminus) where {T, Time}
+    onset, terminus = convert(Time, onset), convert(Time, terminus)
+    count = 0
+    for spells in values(dnet.edge_spells), s in spells
+        s.terminus_censored && continue
+        onset <= s.terminus < terminus && (count += 1)
+    end
+    return count
+end
+
+"""
+    tTurnover(dnet::DynamicNetwork, window_size) -> Vector{NamedTuple}
+
+Formation and dissolution **event counts and rates** per window of length
+`window_size` across the observation period. Every element has the same
+shape: `(window_start, window_end, n_formations, n_dissolutions,
+formation_rate, dissolution_rate)`, with rates per unit time.
+"""
+function tTurnover(dnet::DynamicNetwork{T, Time}, window_size) where {T, Time}
+    start_time, end_time = dnet.observation_period
+    results = NamedTuple[]
+
+    t = start_time
+    while t < end_time
+        w_end = min(t + window_size, end_time)
+        nf = tEdgeFormation(dnet, t, w_end)
+        nd = tEdgeDissolution(dnet, t, w_end)
+        span = _dur(w_end - t)
+        push!(results, (window_start=t, window_end=w_end,
+                        n_formations=nf, n_dissolutions=nd,
+                        formation_rate=span > 0 ? nf / span : NaN,
+                        dissolution_rate=span > 0 ? nd / span : NaN))
+        t = w_end
+    end
+
+    return results
+end
+
+"""
+    tieDecay(dnet::DynamicNetwork; method=:exponential, rate=1.0, at=observation end)
+
+Tie weights decayed by the time since each edge was last active:
+`exp(-rate·Δ)` (`:exponential`) or `max(0, 1 - rate·Δ)` (`:linear`),
+where Δ is the time from the end of the edge's most recent spell to `at`
+(0 for currently active ties).
+"""
+function tieDecay(dnet::DynamicNetwork{T, Time};
+                  method::Symbol=:exponential, rate::Float64=1.0,
+                  at=dnet.observation_period[2]) where {T, Time}
+    at = convert(Time, at)
+    weights = Dict{Tuple{T, T}, Float64}()
+
+    for (edge, spells) in dnet.edge_spells
+        isempty(spells) && continue
+        # Time since last activity (0 if active at `at`)
+        Δ = Inf
+        for s in spells
+            if NetworkDynamic._spell_active_at(s, at)
+                Δ = 0.0
+                break
+            end
+            s.terminus <= at && (Δ = min(Δ, _dur(at - s.terminus)))
+        end
+        isinf(Δ) && continue  # only spells entirely after `at`
+
+        w = method == :exponential ? exp(-rate * Δ) :
+            method == :linear ? max(0.0, 1.0 - rate * Δ) :
+            throw(ArgumentError("method must be :exponential or :linear"))
+        weights[edge] = w
+    end
+
+    return weights
 end
 
 # =============================================================================
@@ -604,122 +585,97 @@ end
 # =============================================================================
 
 """
-    tSnaStats(dnet::DynamicNetwork, times::AbstractVector{Time};
-              stats::Vector{Symbol}=[:density, :reciprocity]) -> Dict{Symbol, Vector}
+    tSnaStats(dnet::DynamicNetwork, times; measures=[:density, :reciprocity,
+              :transitivity, :mean_degree]) -> Vector{NamedTuple}
 
-Compute SNA statistics at multiple time points.
+Snapshot statistics at each time point. Each snapshot is extracted once
+and reused for all measures. `mean_degree` counts each edge appropriately
+for the network's directedness.
 """
-function tSnaStats(dnet::DynamicNetwork{T, Time}, times::AbstractVector{Time};
-                   stats::Vector{Symbol}=[:density, :reciprocity]) where {T, Time}
-    result = Dict{Symbol, Vector{Float64}}()
-
-    for stat in stats
-        result[stat] = Float64[]
-    end
+function tSnaStats(dnet::DynamicNetwork{T, Time}, times::AbstractVector;
+                   measures::Vector{Symbol}=[:density, :reciprocity,
+                                             :transitivity, :mean_degree]) where {T, Time}
+    results = NamedTuple[]
 
     for t in times
-        snapshot = network_extract(dnet, t)
-        n = nv(snapshot)
+        snapshot = _snapshot(dnet, t)
+        n = Int(nv(snapshot))
+        row = Dict{Symbol, Any}(:time => t)
 
-        for stat in stats
-            val = if stat == :density
-                n <= 1 ? 0.0 : ne(snapshot) / (is_directed(snapshot) ? n*(n-1) : n*(n-1)÷2)
-            elseif stat == :reciprocity
-                tReciprocity(dnet, t)
-            elseif stat == :transitivity
-                n >= 3 ? Graphs.global_clustering_coefficient(snapshot) : 0.0
-            elseif stat == :n_edges
+        for m in measures
+            row[m] = if m == :density
+                network_density(snapshot)
+            elseif m == :reciprocity
+                _snapshot_reciprocity(snapshot)
+            elseif m == :transitivity
+                SNA.transitivity(snapshot)
+            elseif m == :mean_degree
+                n == 0 ? NaN :
+                    (is_directed(snapshot) ? ne(snapshot) / n : 2 * ne(snapshot) / n)
+            elseif m == :n_edges
                 Float64(ne(snapshot))
-            elseif stat == :n_vertices
-                Float64(n)
-            elseif stat == :mean_degree
-                n == 0 ? 0.0 : 2.0 * ne(snapshot) / n
             else
-                @warn "Unknown statistic: $stat"
-                NaN
+                throw(ArgumentError("unknown measure: $m"))
             end
-            push!(result[stat], val)
         end
+
+        push!(results, NamedTuple{Tuple(sort(collect(keys(row))))}(
+            Tuple(row[k] for k in sort(collect(keys(row))))))
     end
 
-    return result
+    return results
 end
 
 """
-    windowSnaStats(dnet::DynamicNetwork, window_size::Time;
-                   stats::Vector{Symbol}=[:density]) -> Dict{Symbol, Vector}
+    windowSnaStats(dnet::DynamicNetwork, window_size; kwargs...) -> Vector{NamedTuple}
 
-Compute SNA statistics in sliding windows.
+Snapshot statistics sampled at the start of each window of length
+`window_size`.
 """
-function windowSnaStats(dnet::DynamicNetwork{T, Time}, window_size::Time;
-                        stats::Vector{Symbol}=[:density],
-                        step::Time=window_size) where {T, Time}
+function windowSnaStats(dnet::DynamicNetwork{T, Time}, window_size;
+                        kwargs...) where {T, Time}
     start_time, end_time = dnet.observation_period
-    times = collect(start_time:step:(end_time - window_size))
-
-    result = Dict{Symbol, Vector{Float64}}()
-    for stat in stats
-        result[stat] = Float64[]
+    times = Time[]
+    t = start_time
+    while t < end_time
+        push!(times, t)
+        t += window_size
     end
-
-    for t in times
-        window_net = network_extract(dnet, t, t + window_size; rule=:any)
-        n = nv(window_net)
-
-        for stat in stats
-            val = if stat == :density
-                n <= 1 ? 0.0 : ne(window_net) / (is_directed(window_net) ? n*(n-1) : n*(n-1)÷2)
-            elseif stat == :n_edges
-                Float64(ne(window_net))
-            elseif stat == :mean_degree
-                n == 0 ? 0.0 : 2.0 * ne(window_net) / n
-            else
-                NaN
-            end
-            push!(result[stat], val)
-        end
-    end
-
-    return result
+    return tSnaStats(dnet, times; kwargs...)
 end
 
 """
-    tAggregate(dnet::DynamicNetwork; method=:union) -> Network
+    tAggregate(dnet::DynamicNetwork; method=:union, onset=..., terminus=...)
 
-Aggregate dynamic network to static using specified method.
+Collapse the dynamic network into a static one.
 
-# Methods
-- `:union`: Include edge if ever active
-- `:intersection`: Include edge if always active
-- `:weighted`: Create weighted network by total activation time
+- `:union` — edges ever active in the window
+- `:intersection` — edges active throughout the window
+- `:weighted` — union, with each edge's total active time (in the window,
+  clipped) stored as its `:weight` attribute
 """
-function tAggregate(dnet::DynamicNetwork{T, Time}; method::Symbol=:union) where {T, Time}
+function tAggregate(dnet::DynamicNetwork{T, Time}; method::Symbol=:union,
+                    onset=dnet.observation_period[1],
+                    terminus=dnet.observation_period[2]) where {T, Time}
+    onset, terminus = convert(Time, onset), convert(Time, terminus)
+
     if method == :union
-        return network_collapse(dnet)
+        return network_collapse(dnet; onset=onset, terminus=terminus, rule=:any)
     elseif method == :intersection
-        # Edge must be active throughout observation period
-        collapsed = Network{T}(; n=nv(dnet.network), directed=is_directed(dnet.network))
-        obs_start, obs_end = dnet.observation_period
-
-        for (edge, spells) in dnet.edge_spells
-            # Check if any spell covers entire observation period
-            if any(s.onset <= obs_start && s.terminus >= obs_end for s in spells)
-                add_edge!(collapsed, edge[1], edge[2])
-            end
-        end
-
-        return collapsed
+        return network_collapse(dnet; onset=onset, terminus=terminus, rule=:all)
     elseif method == :weighted
-        collapsed = Network{T}(; n=nv(dnet.network), directed=is_directed(dnet.network))
-
+        collapsed = network_collapse(dnet; onset=onset, terminus=terminus, rule=:any)
         for (edge, spells) in dnet.edge_spells
-            if !isempty(spells)
-                add_edge!(collapsed, edge[1], edge[2])
-                total_time = sum(s.terminus - s.onset for s in spells)
-                set_edge_attribute!(collapsed, edge[1], edge[2], :weight, total_time)
+            total = 0.0
+            for s in spells
+                lo = max(s.onset, onset)
+                hi = min(s.terminus, terminus)
+                hi > lo && (total += _dur(hi - lo))
+            end
+            if total > 0 && has_edge(collapsed, edge[1], edge[2])
+                set_edge_attribute!(collapsed, :weight, edge[1], edge[2], total)
             end
         end
-
         return collapsed
     else
         throw(ArgumentError("method must be :union, :intersection, or :weighted"))
