@@ -13,7 +13,7 @@ While centrality and path analysis describe the network at specific times, durat
 
 ## Edge Duration
 
-### tEdgeDuration
+### t_edge_duration
 
 Compute the total duration of edge activity:
 
@@ -31,22 +31,21 @@ activate!(dnet, 0.0, 100.0; edge=(4, 5))   # Duration: 100
 activate!(dnet, 20.0, 40.0; edge=(1, 3))   # Duration: 20
 
 # Mean edge duration
-mean_dur = tEdgeDuration(dnet; aggregate=:mean)
+mean_dur = t_edge_duration(dnet; aggregate=:mean)
 println("Mean edge duration: $mean_dur")  # (50+20+40+100+20)/5 = 46.0
 
 # Median edge duration
-med_dur = tEdgeDuration(dnet; aggregate=:median)
+med_dur = t_edge_duration(dnet; aggregate=:median)
 println("Median edge duration: $med_dur")  # 40.0
 
 # Total edge-time
-total_dur = tEdgeDuration(dnet; aggregate=:total)
+total_dur = t_edge_duration(dnet; aggregate=:total)
 println("Total edge-time: $total_dur")  # 230.0
 
-# Per-edge durations
-all_durs = tEdgeDuration(dnet; aggregate=:all)
-for (edge, dur) in all_durs
-    println("  Edge $(edge[1])->$(edge[2]): $dur")
-end
+# Raw per-spell durations (a Vector{Float64}; use mode=:total to sum
+# spells per edge first)
+all_durs = t_edge_duration(dnet; aggregate=:all)
+println("  Spell durations: ", all_durs)
 ```
 
 ### Aggregation Options
@@ -56,35 +55,36 @@ end
 | `:mean` | Mean duration across all edges |
 | `:median` | Median duration |
 | `:total` | Sum of all durations |
-| `:all` | Dictionary mapping each edge to its duration |
+| `:all` | Raw vector of durations (one per spell, or per edge with `mode=:total`) |
 
 ### Multiple Spells
 
-When an edge has multiple activity spells, `tEdgeDuration` sums them:
+When an edge has multiple activity spells, `t_edge_duration` sums them:
 
 ```julia
 # Edge (1,2) active in two periods
 activate!(dnet, 0.0, 20.0; edge=(1, 2))
 activate!(dnet, 40.0, 60.0; edge=(1, 2))
 
-# Duration = 20 + 20 = 40
-dur = tEdgeDuration(dnet; aggregate=:all)
-println("Edge (1,2) total duration: ", dur[(1, 2)])  # 40.0
+# mode=:spell (default) keeps the two spells separate;
+# mode=:total sums them per edge: 20 + 20 = 40
+durs = t_edge_duration(dnet; mode=:total, aggregate=:all)
+println("Per-edge total durations: ", durs)
 ```
 
 ## Vertex Duration
 
-### tVertexDuration
+### t_vertex_duration
 
 Compute the total duration of vertex activity:
 
 ```julia
 # Mean vertex activity duration
-v_dur = tVertexDuration(dnet; aggregate=:mean)
+v_dur = t_vertex_duration(dnet; aggregate=:mean)
 println("Mean vertex duration: $v_dur")
 
 # All vertex durations
-all_v_dur = tVertexDuration(dnet; aggregate=:all)
+all_v_dur = t_vertex_duration(dnet; aggregate=:all)
 for (i, dur) in enumerate(all_v_dur)
     println("  Vertex $i: $dur")
 end
@@ -94,13 +94,13 @@ The same aggregation options (`:mean`, `:median`, `:total`, `:all`) apply.
 
 ## Edge Persistence
 
-### tEdgePersistence
+### t_edge_persistence
 
 Measures the proportion of edges that persist (survive) across time windows:
 
 ```julia
 # Edge persistence across 20-unit windows
-persistence = tEdgePersistence(dnet, 20.0)
+persistence = t_edge_persistence(dnet, 20.0)
 println("Persistence (window=20): $(round(persistence, digits=3))")
 ```
 
@@ -125,7 +125,7 @@ println("Persistence (window=20): $(round(persistence, digits=3))")
 ```julia
 # Persistence at different window sizes
 for w in [5.0, 10.0, 20.0, 30.0, 50.0]
-    p = tEdgePersistence(dnet, w)
+    p = t_edge_persistence(dnet, w)
     println("Window=$w: persistence=$(round(p, digits=3))")
 end
 ```
@@ -134,27 +134,29 @@ Larger windows allow more time for changes, so persistence generally decreases w
 
 ## Turnover
 
-### tTurnover
+### t_turnover
 
 Compute edge formation and dissolution rates:
 
 ```julia
-turnover = tTurnover(dnet, 20.0)
-
-println("Formation rate: $(round(turnover.formation_rate, digits=4))")
-println("Dissolution rate: $(round(turnover.dissolution_rate, digits=4))")
-println("Number of formations: $(turnover.n_formations)")
-println("Number of dissolutions: $(turnover.n_dissolutions)")
+# One NamedTuple per window of length 20
+for w in t_turnover(dnet, 20.0)
+    println("[$(w.window_start), $(w.window_end)): ",
+            "formation rate = $(round(w.formation_rate, digits=4)), ",
+            "dissolution rate = $(round(w.dissolution_rate, digits=4)), ",
+            "+$(w.n_formations)/-$(w.n_dissolutions) edges")
+end
 ```
 
-### Returned Fields
+### Returned Fields (per window)
 
 | Field | Description |
 |-------|-------------|
-| `formation_rate` | Formations / at-risk non-edges |
-| `dissolution_rate` | Dissolutions / at-risk edges |
-| `n_formations` | Total number of new edges across all windows |
-| `n_dissolutions` | Total number of dissolved edges across all windows |
+| `window_start`, `window_end` | The window boundaries |
+| `n_formations` | Spell onset events in the window |
+| `n_dissolutions` | Spell terminus events in the window |
+| `formation_rate` | Formations per unit time |
+| `dissolution_rate` | Dissolutions per unit time |
 
 ### Understanding Rates
 
@@ -169,42 +171,44 @@ $$\text{dissolution rate} = \frac{\text{dissolved edges at } t+1}{\text{edges at
 ### Turnover Analysis
 
 ```julia
-# Compare turnover at different timescales
+# Compare turnover at different timescales (totals over all windows)
 for w in [10.0, 20.0, 30.0]
-    t = tTurnover(dnet, w)
-    println("Window $w:")
-    println("  Formation: $(round(t.formation_rate, digits=4)) ($(t.n_formations) new)")
-    println("  Dissolution: $(round(t.dissolution_rate, digits=4)) ($(t.n_dissolutions) lost)")
-    println("  Net change: $(t.n_formations - t.n_dissolutions)")
+    windows = t_turnover(dnet, w)
+    total_form = sum(x.n_formations for x in windows)
+    total_diss = sum(x.n_dissolutions for x in windows)
+    println("Window $w: +$total_form/-$total_diss, ",
+            "net change = $(total_form - total_diss)")
 end
 ```
 
 ## Tie Decay
 
-### tieDecay
+### tie_decay
 
-Estimate the rate at which ties decay (end) from observed edge spell durations:
+Per-edge tie weights decayed by the time since each edge was last active
+(1.0 for currently active ties):
 
 ```julia
-# Exponential decay rate (MLE for exponential distribution)
-decay = tieDecay(dnet; method=:exponential)
-println("Decay rate: $(round(decay, digits=4))")
-println("Expected duration: $(round(1.0/decay, digits=1))")
+# Exponential decay: exp(-rate·Δ), Δ = time since last activity
+weights = tie_decay(dnet; method=:exponential, rate=0.1)
+println("Edge decay weights: ", weights)
 
-# Halflife method
-halflife_rate = tieDecay(dnet; method=:halflife)
-println("Halflife decay rate: $(round(halflife_rate, digits=4))")
-println("Halflife: $(round(log(2)/halflife_rate, digits=1))")
+# Linear decay: max(0, 1 - rate·Δ)
+weights_lin = tie_decay(dnet; method=:linear, rate=0.05)
+
+# Evaluate at a specific time instead of the observation end
+weights_25 = tie_decay(dnet; at=25.0)
 ```
 
 ### Methods
 
 | Method | Formula | Interpretation |
 |--------|---------|----------------|
-| `:exponential` | $\hat{\lambda} = 1/\bar{d}$ | Rate parameter of exponential distribution |
-| `:halflife` | $\hat{\lambda}_h = \ln(2)/\bar{d}$ | Rate such that $P(\text{survive } > \text{halflife}) = 0.5$ |
+| `:exponential` | $e^{-\text{rate}\,\Delta}$ | Smooth exponential forgetting |
+| `:linear` | $\max(0,\ 1 - \text{rate}\,\Delta)$ | Weight hits zero after $1/\text{rate}$ time units |
 
-Where $\bar{d}$ is the mean edge duration.
+Where $\Delta$ is the time from the end of the edge's most recent spell
+to `at` (0 for currently active ties).
 
 ## Contact Sequences
 
@@ -256,21 +260,23 @@ end
 
 ## Network Aggregation
 
-### tAggregate
+### t_aggregate
 
 Collapse a dynamic network to a static network:
 
 ```julia
+using Network   # for ne on the aggregated static networks
+
 # Union: include any edge that was ever active
-static_union = tAggregate(dnet; method=:union)
+static_union = t_aggregate(dnet; method=:union)
 println("Union: $(ne(static_union)) edges")
 
 # Intersection: include edges active throughout the entire observation period
-static_inter = tAggregate(dnet; method=:intersection)
+static_inter = t_aggregate(dnet; method=:intersection)
 println("Intersection: $(ne(static_inter)) edges")
 
 # Weighted: weight by total activation time
-static_weighted = tAggregate(dnet; method=:weighted)
+static_weighted = t_aggregate(dnet; method=:weighted)
 println("Weighted: $(ne(static_weighted)) edges")
 ```
 
@@ -287,11 +293,13 @@ println("Weighted: $(ne(static_weighted)) edges")
 The weighted method creates a static network where edge weights represent total activity time:
 
 ```julia
-static = tAggregate(dnet; method=:weighted)
+using Graphs: src, dst
+
+static = t_aggregate(dnet; method=:weighted)
 
 # Access edge weights
 for e in edges(static)
-    w = get_edge_attribute(static, src(e), dst(e), :weight)
+    w = get_edge_attribute(static, :weight, src(e), dst(e))
     println("Edge $(src(e))->$(dst(e)): weight = $w")
 end
 ```
@@ -300,11 +308,11 @@ end
 
 ### Regular Interval Statistics
 
-Use `tSnaStats` to compute SNA statistics at regular time points:
+Use `t_sna_stats` to compute SNA statistics at regular time points:
 
 ```julia
 times = collect(0.0:5.0:100.0)
-stats = tSnaStats(dnet, times;
+stats = t_sna_stats(dnet, times;
     measures=[:density, :reciprocity, :n_edges, :mean_degree]
 )
 
@@ -317,10 +325,10 @@ end
 
 ### Sliding Window Statistics
 
-Use `windowSnaStats` to compute statistics in sliding windows:
+Use `window_sna_stats` to compute statistics in sliding windows:
 
 ```julia
-stats = windowSnaStats(dnet, 20.0;
+stats = window_sna_stats(dnet, 20.0;
     measures=[:density, :n_edges]
 )
 
@@ -333,10 +341,10 @@ println("Window densities: ", round.([row.density for row in stats], digits=3))
 times = collect(0.0:10.0:100.0)
 
 # Point-in-time: what is the density at each instant?
-point_stats = tSnaStats(dnet, times; measures=[:density])
+point_stats = t_sna_stats(dnet, times; measures=[:density])
 
 # Window: what is the density aggregated over each 10-unit window?
-window_stats = windowSnaStats(dnet, 10.0; measures=[:density])
+window_stats = window_sna_stats(dnet, 10.0; measures=[:density])
 
 println("Point densities: ", round.([row.density for row in point_stats], digits=3))
 println("Window densities: ", round.([row.density for row in window_stats], digits=3))
@@ -373,28 +381,28 @@ end
 # === Full Dynamics Analysis ===
 
 println("=== Edge Duration ===")
-dur = tEdgeDuration(dnet; aggregate=:mean)
+dur = t_edge_duration(dnet; aggregate=:mean)
 println("Mean edge duration: $(round(dur, digits=1))")
 
 println("\n=== Persistence ===")
 for w in [10.0, 20.0, 30.0]
-    p = tEdgePersistence(dnet, w)
+    p = t_edge_persistence(dnet, w)
     println("Window $w: $(round(p, digits=3))")
 end
 
 println("\n=== Turnover ===")
-t = tTurnover(dnet, 20.0)
-println("Formation rate: $(round(t.formation_rate, digits=4))")
-println("Dissolution rate: $(round(t.dissolution_rate, digits=4))")
+for w in t_turnover(dnet, 20.0)
+    println("[$(w.window_start), $(w.window_end)): ",
+            "+$(w.n_formations)/-$(w.n_dissolutions)")
+end
 
 println("\n=== Tie Decay ===")
-decay = tieDecay(dnet; method=:exponential)
-println("Decay rate: $(round(decay, digits=4))")
-println("Expected tie lifetime: $(round(1/decay, digits=1))")
+weights = tie_decay(dnet; method=:exponential)
+println("Edge decay weights: ", weights)
 
 println("\n=== Network Evolution ===")
 times = collect(0.0:10.0:100.0)
-stats = tSnaStats(dnet, times; measures=[:density, :n_edges])
+stats = t_sna_stats(dnet, times; measures=[:density, :n_edges])
 for row in stats
     println("t=$(row.time): $(Int(row.n_edges)) edges, ",
             "density=$(round(row.density, digits=3))")

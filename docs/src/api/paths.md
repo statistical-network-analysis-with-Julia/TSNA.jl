@@ -13,15 +13,15 @@ ContactSequence
 ## Temporal Distance and Path Finding
 
 ```@docs
-temporalDistance
-shortestTemporalPath
+temporal_distance
+shortest_temporal_path
 ```
 
 ## Reachability
 
 ```@docs
-forwardReachableSet
-backwardReachableSet
+forward_reachable_set
+backward_reachable_set
 ```
 
 ## Contact Sequence Conversion

@@ -19,10 +19,12 @@ SNA = {path = "../SNA.jl"}
 
 [compat]
 DataStructures = "0.18, 0.19"
+Dates = "1.11.0"
 Graphs = "1.9"
 Network = "0.1"
 NetworkDynamic = "0.1"
 SNA = "0.1"
+Statistics = "1.11.1"
 julia = "1.12"
 
 [extras]

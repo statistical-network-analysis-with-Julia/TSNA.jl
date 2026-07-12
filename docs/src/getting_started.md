@@ -8,7 +8,10 @@ Install TSNA.jl from GitHub:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/Statistical-network-analysis-with-Julia/TSNA.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Network.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/SNA.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/TSNA.jl")
 ```
 
 TSNA.jl depends on NetworkDynamic.jl, Network.jl, and SNA.jl, which will be installed automatically.
@@ -61,19 +64,19 @@ Compute standard centrality measures on the network snapshot at a specific time:
 
 ```julia
 # Degree centrality at t=30
-deg = tDegree(dnet, 30.0)
+deg = t_degree(dnet, 30.0)
 println("Degree at t=30: ", deg)
 
 # Directed degree
-in_deg = tDegree(dnet, 30.0; mode=:in)
-out_deg = tDegree(dnet, 30.0; mode=:out)
+in_deg = t_degree(dnet, 30.0; mode=:in)
+out_deg = t_degree(dnet, 30.0; mode=:out)
 
 # Betweenness centrality at t=30
-bet = tBetweenness(dnet, 30.0)
+bet = t_betweenness(dnet, 30.0)
 println("Betweenness at t=30: ", round.(bet, digits=3))
 
 # Closeness centrality at t=30
-clo = tCloseness(dnet, 30.0)
+clo = t_closeness(dnet, 30.0)
 println("Closeness at t=30: ", round.(clo, digits=3))
 ```
 
@@ -82,16 +85,16 @@ println("Closeness at t=30: ", round.(clo, digits=3))
 ```julia
 # Density at different times
 for t in 0.0:20.0:100.0
-    d = tDensity(dnet, t)
+    d = t_density(dnet, t)
     println("t=$t: density = $(round(d, digits=3))")
 end
 
 # Reciprocity (directed networks)
-r = tReciprocity(dnet, 50.0)
+r = t_reciprocity(dnet, 50.0)
 println("Reciprocity at t=50: $(round(r, digits=3))")
 
 # Transitivity (clustering coefficient)
-tr = tTransitivity(dnet, 50.0)
+tr = t_transitivity(dnet, 50.0)
 println("Transitivity at t=50: $(round(tr, digits=3))")
 ```
 
@@ -100,9 +103,9 @@ println("Transitivity at t=50: $(round(tr, digits=3))")
 ```julia
 # Compute density and reciprocity at regular intervals
 times = collect(0.0:10.0:100.0)
-stats = tSnaStats(dnet, times; measures=[:density, :reciprocity, :n_edges])
+stats = t_sna_stats(dnet, times; measures=[:density, :reciprocity, :n_edges])
 
-println("Time\tDensity\tReciprocity\tEdges")
+println("Time\t_density\t_reciprocity\tEdges")
 for row in stats   # one NamedTuple per time point
     d = round(row.density, digits=3)
     r = round(row.reciprocity, digits=3)
@@ -119,11 +122,11 @@ Find the earliest arrival time from one vertex to another:
 
 ```julia
 # How quickly can information travel from vertex 1 to vertex 5?
-dist = temporalDistance(dnet, 1, 5, 0.0)
+dist = temporal_distance(dnet, 1, 5, 0.0)
 println("Earliest arrival at v5 from v1 starting at t=0: $dist")
 
 # Starting at a later time
-dist_late = temporalDistance(dnet, 1, 5, 50.0)
+dist_late = temporal_distance(dnet, 1, 5, 50.0)
 println("Earliest arrival at v5 from v1 starting at t=50: $dist_late")
 ```
 
@@ -132,7 +135,7 @@ println("Earliest arrival at v5 from v1 starting at t=50: $dist_late")
 Find the actual path, not just the arrival time:
 
 ```julia
-path = shortestTemporalPath(dnet, 1, 5, 0.0)
+path = shortest_temporal_path(dnet, 1, 5, 0.0)
 
 if !isnothing(path)
     println("Path found: ", path)
@@ -150,7 +153,7 @@ Find all vertices reachable from a source:
 
 ```julia
 # Who can vertex 1 reach starting at t=0?
-reachable = forwardReachableSet(dnet, 1, 0.0)
+reachable = forward_reachable_set(dnet, 1, 0.0)
 println("Vertices reachable from v1: ", reachable)
 println("Reachability: $(length(reachable))/$(nv(dnet))")
 ```
@@ -161,7 +164,7 @@ Find all vertices that can reach a target:
 
 ```julia
 # Who can reach vertex 10 by t=100?
-sources = backwardReachableSet(dnet, 10, 100.0)
+sources = backward_reachable_set(dnet, 10, 100.0)
 println("Vertices that can reach v10: ", sources)
 ```
 
@@ -171,29 +174,28 @@ println("Vertices that can reach v10: ", sources)
 
 ```julia
 # Mean edge duration
-mean_dur = tEdgeDuration(dnet; aggregate=:mean)
+mean_dur = t_edge_duration(dnet; aggregate=:mean)
 println("Mean edge duration: $(round(mean_dur, digits=1))")
 
 # Median edge duration
-med_dur = tEdgeDuration(dnet; aggregate=:median)
+med_dur = t_edge_duration(dnet; aggregate=:median)
 println("Median edge duration: $(round(med_dur, digits=1))")
 
 # Total across all edges
-total_dur = tEdgeDuration(dnet; aggregate=:total)
+total_dur = t_edge_duration(dnet; aggregate=:total)
 println("Total edge-time: $(round(total_dur, digits=1))")
 
-# Per-edge durations
-all_durs = tEdgeDuration(dnet; aggregate=:all)
-for (edge, dur) in all_durs
-    println("Edge $(edge[1])->$(edge[2]): duration = $dur")
-end
+# Raw per-spell durations (a Vector{Float64}; use mode=:total to sum
+# spells per edge first)
+all_durs = t_edge_duration(dnet; aggregate=:all)
+println("Spell durations: ", all_durs)
 ```
 
 ### Vertex Duration
 
 ```julia
 # Mean vertex activity duration
-v_dur = tVertexDuration(dnet; aggregate=:mean)
+v_dur = t_vertex_duration(dnet; aggregate=:mean)
 println("Mean vertex duration: $(round(v_dur, digits=1))")
 ```
 
@@ -203,12 +205,12 @@ Measure how many edges persist across time windows:
 
 ```julia
 # What fraction of edges persist across 20-unit windows?
-persistence = tEdgePersistence(dnet, 20.0)
+persistence = t_edge_persistence(dnet, 20.0)
 println("Edge persistence (window=20): $(round(persistence, digits=3))")
 
 # Try different window sizes
 for w in [10.0, 20.0, 30.0, 50.0]
-    p = tEdgePersistence(dnet, w)
+    p = t_edge_persistence(dnet, w)
     println("Window $w: persistence = $(round(p, digits=3))")
 end
 ```
@@ -218,11 +220,13 @@ end
 Compute edge formation and dissolution rates:
 
 ```julia
-turnover = tTurnover(dnet, 20.0)
-println("Formation rate: $(round(turnover.formation_rate, digits=4))")
-println("Dissolution rate: $(round(turnover.dissolution_rate, digits=4))")
-println("New edges: $(turnover.n_formations)")
-println("Lost edges: $(turnover.n_dissolutions)")
+# One NamedTuple per window of length 20
+for w in t_turnover(dnet, 20.0)
+    println("[$(w.window_start), $(w.window_end)): ",
+            "formation rate = $(round(w.formation_rate, digits=4)), ",
+            "dissolution rate = $(round(w.dissolution_rate, digits=4)), ",
+            "+$(w.n_formations)/-$(w.n_dissolutions) edges")
+end
 ```
 
 ### Tie Decay
@@ -230,13 +234,13 @@ println("Lost edges: $(turnover.n_dissolutions)")
 Estimate the rate at which ties decay:
 
 ```julia
-# Exponential decay rate
-decay = tieDecay(dnet; method=:exponential)
-println("Decay rate: $(round(decay, digits=4))")
+# Per-edge decayed weights: exp(-rate·Δ) with Δ the time since the edge
+# was last active (1.0 for currently active ties)
+weights = tie_decay(dnet; method=:exponential)
+println("Edge decay weights: ", weights)
 
-# Halflife method
-halflife_rate = tieDecay(dnet; method=:halflife)
-println("Halflife decay rate: $(round(halflife_rate, digits=4))")
+# Linear decay: max(0, 1 - rate·Δ)
+weights_lin = tie_decay(dnet; method=:linear, rate=0.05)
 ```
 
 ## Complete Example
@@ -272,7 +276,7 @@ activate!(dnet, 32.0, 48.0; edge=(2, 6))  # Cross-team link
 # 1. Track centrality over time
 println("=== Degree Centrality Over Time ===")
 for t in [5.0, 15.0, 25.0, 35.0, 45.0]
-    deg = tDegree(dnet, t)
+    deg = t_degree(dnet, t)
     top_v = argmax(deg)
     println("t=$t: most central vertex = $top_v (degree=$(deg[top_v]))")
 end
@@ -280,16 +284,16 @@ end
 # 2. Reachability analysis
 println("\n=== Reachability from Vertex 1 ===")
 for t_start in [0.0, 10.0, 20.0, 30.0]
-    reach = forwardReachableSet(dnet, 1, t_start)
+    reach = forward_reachable_set(dnet, 1, t_start)
     println("Starting at t=$t_start: $(length(reach)) vertices reachable")
 end
 
 # 3. Temporal paths
 println("\n=== Shortest Paths from v1 ===")
 for target in [4, 6, 8]
-    path = shortestTemporalPath(dnet, 1, target, 0.0)
+    path = shortest_temporal_path(dnet, 1, target, 0.0)
     if !isnothing(path)
-        println("v1 -> v$target: $(length(path)) edges, arrival at t=$(path.times[end])")
+        println("v1 -> v$target: $(length(path.edges)) edges, arrival at t=$(path.times[end])")
     else
         println("v1 -> v$target: no path")
     end
@@ -297,17 +301,19 @@ end
 
 # 4. Duration metrics
 println("\n=== Duration Metrics ===")
-println("Mean edge duration: $(round(tEdgeDuration(dnet; aggregate=:mean), digits=1))")
-println("Edge persistence (window=10): $(round(tEdgePersistence(dnet, 10.0), digits=3))")
+println("Mean edge duration: $(round(t_edge_duration(dnet; aggregate=:mean), digits=1))")
+println("Edge persistence (window=10): $(round(t_edge_persistence(dnet, 10.0), digits=3))")
 
-turnover = tTurnover(dnet, 10.0)
-println("Formation rate: $(round(turnover.formation_rate, digits=4))")
-println("Dissolution rate: $(round(turnover.dissolution_rate, digits=4))")
+for w in t_turnover(dnet, 10.0)
+    println("Window [$(w.window_start), $(w.window_end)): ",
+            "formation rate = $(round(w.formation_rate, digits=4)), ",
+            "dissolution rate = $(round(w.dissolution_rate, digits=4))")
+end
 
 # 5. Network evolution
 println("\n=== Network Evolution ===")
 times = collect(0.0:5.0:50.0)
-stats = tSnaStats(dnet, times; measures=[:density, :n_edges, :mean_degree])
+stats = t_sna_stats(dnet, times; measures=[:density, :n_edges, :mean_degree])
 for row in stats
     println("t=$(row.time): edges=$(Int(row.n_edges)), ",
             "density=$(round(row.density, digits=3)), ",
@@ -335,15 +341,15 @@ Collapse a dynamic network to static using different methods:
 
 ```julia
 # Union: include any edge that was ever active
-static_union = tAggregate(dnet; method=:union)
+static_union = t_aggregate(dnet; method=:union)
 println("Union: $(ne(static_union)) edges")
 
 # Intersection: include only edges active throughout
-static_inter = tAggregate(dnet; method=:intersection)
+static_inter = t_aggregate(dnet; method=:intersection)
 println("Intersection: $(ne(static_inter)) edges")
 
 # Weighted: weight by total activity time
-static_weighted = tAggregate(dnet; method=:weighted)
+static_weighted = t_aggregate(dnet; method=:weighted)
 println("Weighted: $(ne(static_weighted)) edges")
 ```
 

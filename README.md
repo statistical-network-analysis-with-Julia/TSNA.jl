@@ -22,17 +22,35 @@ This package is a Julia port of the R `tsna` package from the StatNet collection
 
 ## Installation
 
+Requires Julia 1.12+. TSNA.jl depends on the unregistered
+[Network.jl](https://github.com/statistical-network-analysis-with-Julia/Network.jl), [NetworkDynamic.jl](https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl), and [SNA.jl](https://github.com/statistical-network-analysis-with-Julia/SNA.jl) packages, which must be added first (in this order):
+
 ```julia
 using Pkg
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Network.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/SNA.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/TSNA.jl")
 ```
+
+For development, you can instead clone all ecosystem repositories side by
+side (the monorepo layout) and start Julia with the root workspace project
+(`julia --project=.` in the clone root): the `[sources]` path dependencies
+then wire the packages together with no ordered installs needed.
 
 ## Features
 
 - **Temporal centrality**: Time-varying degree, betweenness, closeness
 - **Temporal paths**: Time-respecting paths and reachability
-- **Duration metrics**: Edge/vertex activity duration, persistence, turnover
+- **Duration metrics**: Edge/vertex activity duration, formation/dissolution counts, persistence, turnover
 - **Aggregation**: Compute statistics over time windows
+
+## Naming
+
+All public functions have **snake_case primary names** (the Julia
+convention) with the R tsna-style **camelCase aliases** kept for
+migration: `earliest_arrival`/`earliestArrival`, `t_degree`/`tDegree`,
+`t_sna_stats`/`tSnaStats`, ... Both are exported and interchangeable.
 
 ## Quick Start
 
@@ -49,15 +67,15 @@ activate!(dnet, 0.0, 60.0; edge=(1, 2))
 activate!(dnet, 10.0, 80.0; edge=(2, 5))
 
 # Temporal centrality at time 50
-deg = tDegree(dnet, 50.0)
-bet = tBetweenness(dnet, 50.0)
+deg = t_degree(dnet, 50.0)
+bet = t_betweenness(dnet, 50.0)
 
 # Temporal path finding (from vertex 1 to vertex 5, starting at t=0)
-dist = temporalDistance(dnet, 1, 5, 0.0)
-path = shortestTemporalPath(dnet, 1, 5, 0.0)
+dist = temporal_distance(dnet, 1, 5, 0.0)
+path = shortest_temporal_path(dnet, 1, 5, 0.0)
 
 # Reachability
-reachable = forwardReachableSet(dnet, 1, 0.0)
+reachable = forward_reachable_set(dnet, 1, 0.0)
 ```
 
 ## Temporal Centrality
@@ -66,24 +84,24 @@ reachable = forwardReachableSet(dnet, 1, 0.0)
 at = 50.0   # evaluation time used below
 
 # At a specific time point
-tDegree(dnet, at; mode=:total)      # :in, :out, or :total
-tBetweenness(dnet, at)
-tCloseness(dnet, at)
-tEigenvector(dnet, at)
-tPagerank(dnet, at; damping=0.85)
+t_degree(dnet, at; mode=:total)      # :in, :out, or :total
+t_betweenness(dnet, at)
+t_closeness(dnet, at)
+t_eigenvector(dnet, at)
+t_pagerank(dnet, at; damping=0.85)
 ```
 
 ## Temporal Network Measures
 
 ```julia
 # At a time point
-tDensity(dnet, at)
-tReciprocity(dnet, at)
-tTransitivity(dnet, at)
+t_density(dnet, at)
+t_reciprocity(dnet, at)
+t_transitivity(dnet, at)
 
 # Over time series
 times = 0.0:10.0:100.0
-stats = tSnaStats(dnet, times; measures=[:density, :reciprocity])
+stats = t_sna_stats(dnet, times; measures=[:density, :reciprocity])
 ```
 
 ## Temporal Paths
@@ -100,10 +118,10 @@ struct tPath{T, Time}
 end
 
 # Find earliest arrival time
-arrival = temporalDistance(dnet, source, target, start_time)
+arrival = temporal_distance(dnet, source, target, start_time)
 
 # Find actual path
-path = shortestTemporalPath(dnet, source, target, start_time)
+path = shortest_temporal_path(dnet, source, target, start_time)
 ```
 
 ## Reachability
@@ -111,28 +129,37 @@ path = shortestTemporalPath(dnet, source, target, start_time)
 <!-- skip-check -->
 ```julia
 # Who can source reach starting at start_time?
-forward = forwardReachableSet(dnet, source, start_time)
+forward = forward_reachable_set(dnet, source, start_time)
 
 # Who can reach target by end_time?
-backward = backwardReachableSet(dnet, target, end_time)
+backward = backward_reachable_set(dnet, target, end_time)
 ```
 
 ## Duration Metrics
 
 ```julia
 # Edge duration statistics
-mean_dur = tEdgeDuration(dnet; aggregate=:mean)
-all_durs = tEdgeDuration(dnet; aggregate=:all)  # Per-edge Dict
+mean_dur = t_edge_duration(dnet; aggregate=:mean)
+all_durs = t_edge_duration(dnet; aggregate=:all)  # Raw per-spell vector
 
 # Vertex duration
-tVertexDuration(dnet; aggregate=:mean)
+t_vertex_duration(dnet; aggregate=:mean)
+
+# Formation / dissolution events in [onset, terminus), counted as spell
+# onset/terminus events (like tsna::tEdgeFormationAt)
+n_form = t_edge_formation(dnet, 0.0, 50.0)
+n_diss = t_edge_dissolution(dnet, 0.0, 50.0)
+
+# Proportion of edges surviving across consecutive 10-unit windows
+# (temporal-correlation measure of Nicosia et al.)
+persistence = t_edge_persistence(dnet, 10.0)
 
 # Turnover rates in 10-unit windows
-turnover = tTurnover(dnet, 10.0)
+turnover = t_turnover(dnet, 10.0)
 # Returns: (formation_rate, dissolution_rate, n_formations, n_dissolutions)
 
 # Tie decay rate
-decay_rate = tieDecay(dnet; method=:exponential)
+decay_rate = tie_decay(dnet; method=:exponential)
 ```
 
 ## Aggregation
@@ -140,17 +167,15 @@ decay_rate = tieDecay(dnet; method=:exponential)
 ```julia
 # Statistics at multiple time points
 times = collect(0.0:5.0:100.0)
-stats = tSnaStats(dnet, times; measures=[:density, :n_edges, :mean_degree])
+stats = t_sna_stats(dnet, times; measures=[:density, :n_edges, :mean_degree])
 
-# Statistics in sliding windows
-stats = windowSnaStats(dnet, window_size;
-                       stats=[:density],
-                       step=window_size/2)
+# Snapshot statistics at the start of each window of width 20
+stats = window_sna_stats(dnet, 20.0; measures=[:density])
 
 # Aggregate to static network
-static = tAggregate(dnet; method=:union)       # Ever active
-static = tAggregate(dnet; method=:intersection) # Always active
-static = tAggregate(dnet; method=:weighted)     # Weight = total time
+static = t_aggregate(dnet; method=:union)        # Ever active
+static = t_aggregate(dnet; method=:intersection)  # Always active
+static = t_aggregate(dnet; method=:weighted)      # Weight = total time
 ```
 
 ## Contact Sequences
@@ -175,13 +200,13 @@ end
 ```julia
 # Who could receive information from source within time window?
 start_time = 0.0
-reachable = forwardReachableSet(dnet, source, start_time)
+reachable = forward_reachable_set(dnet, source, start_time)
 println("$(length(reachable)) nodes reachable from source")
 
 # Track how reachability grows over time
 for t in 10.0:10.0:100.0
-    r = forwardReachableSet(dnet, source, start_time)
-    r_by_t = filter(v -> temporalDistance(dnet, source, v, start_time) <= t, r)
+    r = forward_reachable_set(dnet, source, start_time)
+    r_by_t = filter(v -> temporal_distance(dnet, source, v, start_time) <= t, r)
     println("t=$t: $(length(r_by_t)) nodes reachable")
 end
 ```

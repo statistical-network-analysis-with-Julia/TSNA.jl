@@ -8,8 +8,9 @@ Temporal centrality measures answer the question: "Who is most central **at a gi
 
 All temporal centrality functions in TSNA.jl follow the same pattern:
 
+<!-- skip-check -->
 ```julia
-centrality_values = tCentrality(dnet, at_time; options...)
+centrality_values = t_centrality(dnet, at_time; options...)
 ```
 
 They work by:
@@ -20,7 +21,7 @@ They work by:
 
 ## Degree Centrality
 
-### tDegree
+### t_degree
 
 Degree centrality counts the number of edges incident to each vertex:
 
@@ -37,7 +38,7 @@ activate!(dnet, 0.0, 100.0; edge=(2, 3))
 activate!(dnet, 50.0, 100.0; edge=(4, 5))
 
 # Total degree at t=25
-deg = tDegree(dnet, 25.0)
+deg = t_degree(dnet, 25.0)
 println("Degree at t=25: ", deg)
 ```
 
@@ -47,13 +48,13 @@ For directed networks, specify the degree mode:
 
 ```julia
 # In-degree (number of incoming edges)
-in_deg = tDegree(dnet, 25.0; mode=:in)
+in_deg = t_degree(dnet, 25.0; mode=:in)
 
 # Out-degree (number of outgoing edges)
-out_deg = tDegree(dnet, 25.0; mode=:out)
+out_deg = t_degree(dnet, 25.0; mode=:out)
 
 # Total degree (in + out, default)
-total_deg = tDegree(dnet, 25.0; mode=:total)
+total_deg = t_degree(dnet, 25.0; mode=:total)
 ```
 
 | Mode | Counts | Interpretation |
@@ -72,7 +73,7 @@ v = 1  # Track vertex 1
 
 println("Vertex $v degree over time:")
 for t in times
-    deg = tDegree(dnet, t)
+    deg = t_degree(dnet, t)
     if v <= length(deg)
         println("  t=$t: degree=$(deg[v])")
     end
@@ -81,16 +82,16 @@ end
 
 ## Betweenness Centrality
 
-### tBetweenness
+### t_betweenness
 
 Betweenness centrality measures how often a vertex lies on shortest paths between other vertices:
 
 ```julia
-bet = tBetweenness(dnet, 50.0)
+bet = t_betweenness(dnet, 50.0)
 println("Betweenness at t=50: ", round.(bet, digits=3))
 
 # Unnormalized
-bet_raw = tBetweenness(dnet, 50.0; normalized=false)
+bet_raw = t_betweenness(dnet, 50.0; normalized=false)
 ```
 
 | Parameter | Description | Default |
@@ -102,6 +103,8 @@ bet_raw = tBetweenness(dnet, 50.0; normalized=false)
 ### Temporal Brokerage Analysis
 
 ```julia
+using Network   # for nv
+
 # Track betweenness over time to find when vertices serve as brokers
 times = collect(0.0:5.0:100.0)
 n = nv(dnet)
@@ -111,7 +114,7 @@ for v in 1:n
     max_bet = 0.0
     max_t = 0.0
     for t in times
-        bet = tBetweenness(dnet, t)
+        bet = t_betweenness(dnet, t)
         if v <= length(bet) && bet[v] > max_bet
             max_bet = bet[v]
             max_t = t
@@ -125,12 +128,12 @@ end
 
 ## Closeness Centrality
 
-### tCloseness
+### t_closeness
 
 Closeness centrality measures how close a vertex is to all other vertices (inverse of average shortest path length):
 
 ```julia
-clo = tCloseness(dnet, 50.0)
+clo = t_closeness(dnet, 50.0)
 println("Closeness at t=50: ", round.(clo, digits=3))
 ```
 
@@ -140,11 +143,11 @@ println("Closeness at t=50: ", round.(clo, digits=3))
 
 ```julia
 t = 50.0
-deg = tDegree(dnet, t)
-bet = tBetweenness(dnet, t)
-clo = tCloseness(dnet, t)
+deg = t_degree(dnet, t)
+bet = t_betweenness(dnet, t)
+clo = t_closeness(dnet, t)
 
-println("Vertex\tDegree\tBetween\tCloseness")
+println("Vertex\t_degree\tBetween\t_closeness")
 for v in 1:length(deg)
     println("$v\t$(deg[v])\t$(round(bet[v], digits=3))\t$(round(clo[v], digits=3))")
 end
@@ -152,12 +155,12 @@ end
 
 ## Eigenvector Centrality
 
-### tEigenvector
+### t_eigenvector
 
 Eigenvector centrality measures a vertex's influence based on the influence of its neighbors:
 
 ```julia
-eig = tEigenvector(dnet, 50.0)
+eig = t_eigenvector(dnet, 50.0)
 println("Eigenvector centrality at t=50: ", round.(eig, digits=3))
 ```
 
@@ -167,17 +170,17 @@ println("Eigenvector centrality at t=50: ", round.(eig, digits=3))
 
 ## PageRank
 
-### tPagerank
+### t_pagerank
 
 PageRank is a variant of eigenvector centrality with a damping factor, originally designed for ranking web pages:
 
 ```julia
-pr = tPagerank(dnet, 50.0)
+pr = t_pagerank(dnet, 50.0)
 println("PageRank at t=50: ", round.(pr, digits=3))
 
 # With custom damping factor
-pr_low = tPagerank(dnet, 50.0; damping=0.5)
-pr_high = tPagerank(dnet, 50.0; damping=0.95)
+pr_low = t_pagerank(dnet, 50.0; damping=0.5)
+pr_high = t_pagerank(dnet, 50.0; damping=0.95)
 ```
 
 | Parameter | Description | Default |
@@ -188,34 +191,34 @@ pr_high = tPagerank(dnet, 50.0; damping=0.95)
 
 ## Network-Level Temporal Measures
 
-### tDensity
+### t_density
 
 Network density at a specific time:
 
 ```julia
-d = tDensity(dnet, 50.0)
+d = t_density(dnet, 50.0)
 println("Density at t=50: $(round(d, digits=3))")
 ```
 
 Density equals the number of active edges divided by the maximum possible edges.
 
-### tReciprocity
+### t_reciprocity
 
 Proportion of edges that are reciprocated (directed networks):
 
 ```julia
-r = tReciprocity(dnet, 50.0)
+r = t_reciprocity(dnet, 50.0)
 println("Reciprocity at t=50: $(round(r, digits=3))")
 ```
 
 For undirected networks, reciprocity is always 1.0.
 
-### tTransitivity
+### t_transitivity
 
 Global clustering coefficient (transitivity):
 
 ```julia
-tr = tTransitivity(dnet, 50.0)
+tr = t_transitivity(dnet, 50.0)
 println("Transitivity at t=50: $(round(tr, digits=3))")
 ```
 
@@ -225,11 +228,11 @@ Transitivity measures the proportion of connected triples that form triangles.
 
 ### Point-in-Time Statistics
 
-Use `tSnaStats` to compute multiple statistics at a series of time points:
+Use `t_sna_stats` to compute multiple statistics at a series of time points:
 
 ```julia
 times = collect(0.0:10.0:100.0)
-stats = tSnaStats(dnet, times;
+stats = t_sna_stats(dnet, times;
     measures=[:density, :reciprocity, :transitivity, :n_edges, :mean_degree]
 )
 
@@ -239,7 +242,7 @@ reciprocities = [row.reciprocity for row in stats]
 edge_counts = [row.n_edges for row in stats]
 
 # Print table
-println("Time\tDensity\tRecip\tEdges\tMean Deg")
+println("Time\t_density\tRecip\tEdges\tMean Deg")
 for row in stats
     println("$(row.time)\t$(round(row.density, digits=3))\t",
             "$(round(row.reciprocity, digits=3))\t",
@@ -261,11 +264,11 @@ end
 
 ### Window-Based Statistics
 
-Use `windowSnaStats` to compute statistics in sliding windows rather than at point-in-time snapshots:
+Use `window_sna_stats` to compute statistics in sliding windows rather than at point-in-time snapshots:
 
 ```julia
 # Statistics in consecutive 10-unit windows
-stats = windowSnaStats(dnet, 10.0;
+stats = window_sna_stats(dnet, 10.0;
     measures=[:density, :n_edges]
 )
 
@@ -282,7 +285,7 @@ The window extraction uses `network_extract(dnet, t, t+window_size; rule=:any)`,
 At some time points, no vertices or edges may be active:
 
 ```julia
-deg = tDegree(dnet, 200.0)  # After observation period
+deg = t_degree(dnet, 200.0)  # After observation period
 # May return empty vector or zeros
 ```
 
@@ -314,4 +317,4 @@ Some centrality measures (closeness, eigenvector) may behave unexpectedly on dis
 3. **Track over time**: Compute centrality at multiple time points to reveal dynamics
 4. **Compare measures**: Different centrality measures highlight different aspects of temporal importance
 5. **Consider direction**: Use `:in` and `:out` modes for directed networks to distinguish popularity from activity
-6. **Window vs. point**: Use `tSnaStats` for point-in-time snapshots, `windowSnaStats` for aggregated views
+6. **Window vs. point**: Use `t_sna_stats` for point-in-time snapshots, `window_sna_stats` for aggregated views

@@ -52,7 +52,7 @@ path = tPath(
 println(path)
 # tPath: 1 --(5.0)--> 2 --(10.0)--> 3 --(15.0)--> 4
 
-println("Length: ", length(path))  # 3 edges
+println("Length: ", length(path.edges))  # 3 edges
 println("Source: ", path.vertices[1])  # 1
 println("Target: ", path.vertices[end])  # 4
 println("Departure: ", path.times[1])  # 5.0
@@ -63,7 +63,7 @@ println("Arrival: ", path.times[end])  # 15.0
 
 ### Finding Earliest Arrival
 
-The `temporalDistance` function finds the earliest time at which a target vertex can be reached from a source, starting at a given time:
+The `temporal_distance` function finds the earliest time at which a target vertex can be reached from a source, starting at a given time:
 
 ```julia
 using NetworkDynamic
@@ -79,25 +79,25 @@ activate!(dnet, 30.0, 60.0; edge=(3, 4))  # Later
 activate!(dnet, 50.0, 80.0; edge=(4, 5))  # Even later
 
 # Earliest arrival from 1 to 5, starting at t=0
-dist = temporalDistance(dnet, 1, 5, 0.0)
+dist = temporal_distance(dnet, 1, 5, 0.0)
 println("Earliest arrival at v5: $dist")
 # Path: 1→2 at t=0, 2→3 at t=10, 3→4 at t=30, 4→5 at t=50
 # Arrival: t=50
 
 # Starting later
-dist2 = temporalDistance(dnet, 1, 5, 25.0)
+dist2 = temporal_distance(dnet, 1, 5, 25.0)
 println("Starting at t=25: $dist2")
 # Edge (1,2) is still active at t=25, but we need subsequent edges
 ```
 
 ### When No Path Exists
 
-If no temporal path exists, `temporalDistance` returns `Inf`:
+If no temporal path exists, `temporal_distance` returns `nothing`:
 
 ```julia
 # No path exists if we start too late
-dist = temporalDistance(dnet, 1, 5, 90.0)
-if isinf(dist)
+dist = temporal_distance(dnet, 1, 5, 90.0)
+if dist === nothing
     println("No temporal path exists starting at t=90")
 end
 ```
@@ -107,7 +107,7 @@ end
 The distance from a vertex to itself is the start time:
 
 ```julia
-dist = temporalDistance(dnet, 1, 1, 5.0)
+dist = temporal_distance(dnet, 1, 1, 5.0)
 println(dist)  # 5.0
 ```
 
@@ -115,10 +115,10 @@ println(dist)  # 5.0
 
 ### Finding the Path
 
-The `shortestTemporalPath` function returns the actual path, not just the arrival time:
+The `shortest_temporal_path` function returns the actual path, not just the arrival time:
 
 ```julia
-path = shortestTemporalPath(dnet, 1, 5, 0.0)
+path = shortest_temporal_path(dnet, 1, 5, 0.0)
 
 if !isnothing(path)
     println("Path found!")
@@ -134,7 +134,7 @@ end
 ### Path to Self
 
 ```julia
-path = shortestTemporalPath(dnet, 1, 1, 0.0)
+path = shortest_temporal_path(dnet, 1, 1, 0.0)
 println(path)
 # tPath: 1  (trivial path, no edges)
 println(length(path))  # 0
@@ -160,8 +160,10 @@ This is a temporal adaptation of Dijkstra's algorithm, taking advantage of the f
 The forward reachable set contains all vertices that can be reached from a source starting at a given time:
 
 ```julia
+using Network   # for nv
+
 # Who can vertex 1 reach starting at t=0?
-reachable = forwardReachableSet(dnet, 1, 0.0)
+reachable = forward_reachable_set(dnet, 1, 0.0)
 println("Forward reachable from v1 at t=0: ", reachable)
 println("Fraction reachable: $(length(reachable))/$(nv(dnet))")
 ```
@@ -172,7 +174,7 @@ The backward reachable set contains all vertices that can reach a target by a gi
 
 ```julia
 # Who can reach vertex 5 by t=100?
-sources = backwardReachableSet(dnet, 5, 100.0)
+sources = backward_reachable_set(dnet, 5, 100.0)
 println("Backward reachable to v5 by t=100: ", sources)
 ```
 
@@ -180,11 +182,11 @@ println("Backward reachable to v5 by t=100: ", sources)
 
 ```julia
 # Forward reachability always includes the source
-reach = forwardReachableSet(dnet, 1, 0.0)
+reach = forward_reachable_set(dnet, 1, 0.0)
 @assert 1 in reach
 
 # Backward reachability always includes the target
-sources = backwardReachableSet(dnet, 5, 100.0)
+sources = backward_reachable_set(dnet, 5, 100.0)
 @assert 5 in sources
 ```
 
@@ -196,7 +198,7 @@ Track how reachability changes with the start time:
 source = 1
 println("Forward reachability from v$source:")
 for t_start in 0.0:10.0:90.0
-    reach = forwardReachableSet(dnet, source, t_start)
+    reach = forward_reachable_set(dnet, source, t_start)
     println("  Start at t=$t_start: $(length(reach)) vertices reachable")
 end
 ```
@@ -220,7 +222,7 @@ activate_vertices!(dnet, collect(1:20), 0.0, 100.0)
 source = 1
 println("Information spread from vertex $source:")
 for t in 0.0:10.0:100.0
-    reach = forwardReachableSet(dnet, source, t)
+    reach = forward_reachable_set(dnet, source, t)
     println("  Starting at t=$t: $(length(reach)) vertices reachable")
 end
 
@@ -230,7 +232,7 @@ connected_pairs = 0
 total_pairs = n * (n - 1)
 
 for s in 1:n
-    reach = forwardReachableSet(dnet, s, 0.0)
+    reach = forward_reachable_set(dnet, s, 0.0)
     connected_pairs += length(reach) - 1  # Exclude self
 end
 
@@ -249,8 +251,8 @@ start_time = 0.0
 println("Earliest arrival from vertex $source:")
 for target in 1:nv(dnet)
     target == source && continue
-    dist = temporalDistance(dnet, source, target, start_time)
-    if isinf(dist)
+    dist = temporal_distance(dnet, source, target, start_time)
+    if dist === nothing
         println("  v$target: unreachable")
     else
         println("  v$target: arrives at t=$dist")
@@ -268,7 +270,7 @@ target = 10
 
 println("Paths from v$source to v$target:")
 for t_start in 0.0:20.0:80.0
-    path = shortestTemporalPath(dnet, source, target, t_start)
+    path = shortest_temporal_path(dnet, source, target, t_start)
     if !isnothing(path)
         println("  Start t=$t_start: $(length(path)) hops, ",
                 "arrival at t=$(path.times[end])")
@@ -286,10 +288,10 @@ Find vertices that can both reach and be reached by a focal vertex:
 focal = 1
 
 # Forward: who can focal reach?
-forward = forwardReachableSet(dnet, focal, 0.0)
+forward = forward_reachable_set(dnet, focal, 0.0)
 
 # Backward: who can reach focal?
-backward = backwardReachableSet(dnet, focal, 100.0)
+backward = backward_reachable_set(dnet, focal, 100.0)
 
 # Bidirectional: both forward and backward reachable
 bidirectional = intersect(forward, backward)
@@ -303,10 +305,10 @@ println("Bidirectional: $(length(bidirectional))")
 
 | Function | Complexity | Notes |
 |----------|-----------|-------|
-| `temporalDistance` | $O(E \log E)$ | $E$ = total edge spells |
-| `shortestTemporalPath` | $O(E \log E + P)$ | $P$ = path reconstruction |
-| `forwardReachableSet` | $O(E \log E)$ | Same as temporalDistance |
-| `backwardReachableSet` | $O(E \log E)$ | Reverse time processing |
+| `temporal_distance` | $O(E \log E)$ | $E$ = total edge spells |
+| `shortest_temporal_path` | $O(E \log E + P)$ | $P$ = path reconstruction |
+| `forward_reachable_set` | $O(E \log E)$ | Same as temporal_distance |
+| `backward_reachable_set` | $O(E \log E)$ | Reverse time processing |
 
 All algorithms sort edge spells by onset time, then process them in order. The dominant cost is the sort, making them efficient for networks with many vertices but moderate numbers of edge spells.
 
@@ -314,7 +316,7 @@ All algorithms sort edge spells by onset time, then process them in order. The d
 
 1. **Choose appropriate start times**: Reachability depends strongly on the start time
 2. **Consider direction**: In directed networks, forward and backward reachability differ
-3. **Check for Inf**: Always check if `temporalDistance` returns `Inf` before using the result
+3. **Check for Inf**: Always check if `temporal_distance` returns `Inf` before using the result
 4. **Use forward reachability for spread**: Forward reachable sets model information or disease spread
 5. **Use backward reachability for influence**: Backward reachable sets identify potential sources of influence
 6. **Track over time**: Compute reachability at multiple start times to understand dynamics

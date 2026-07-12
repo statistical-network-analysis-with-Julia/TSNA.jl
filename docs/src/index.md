@@ -52,11 +52,24 @@ Temporal SNA is used in:
 - **Aggregation**: Compute statistics at multiple time points or in sliding windows
 - **Network aggregation**: Collapse dynamic networks using union, intersection, or weighted methods
 
+### Naming
+
+All public functions have snake_case primary names (the Julia convention)
+with the R tsna-style camelCase aliases kept for migration:
+[`earliest_arrival`](@ref)/`earliestArrival`, [`t_degree`](@ref)/`tDegree`,
+[`t_sna_stats`](@ref)/`tSnaStats`, ... Both are exported and
+interchangeable. The earliest-arrival search is a heap-based Dijkstra
+label-setting over a memoized per-network contact index, so repeated path
+and reachability queries on the same network are fast.
+
 ## Installation
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/Statistical-network-analysis-with-Julia/TSNA.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Network.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/SNA.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/TSNA.jl")
 ```
 
 Or for development:
@@ -80,28 +93,28 @@ activate!(dnet, 20.0, 80.0; edge=(2, 3))
 activate!(dnet, 40.0, 100.0; edge=(3, 4))
 
 # Temporal centrality at time 50
-deg = tDegree(dnet, 50.0)
-bet = tBetweenness(dnet, 50.0)
+deg = t_degree(dnet, 50.0)
+bet = t_betweenness(dnet, 50.0)
 
 # Temporal path finding
-dist = temporalDistance(dnet, 1, 4, 0.0)
-path = shortestTemporalPath(dnet, 1, 4, 0.0)
+dist = temporal_distance(dnet, 1, 4, 0.0)
+path = shortest_temporal_path(dnet, 1, 4, 0.0)
 
 # Duration metrics
-mean_dur = tEdgeDuration(dnet; aggregate=:mean)
-turnover = tTurnover(dnet, 20.0)
+mean_dur = t_edge_duration(dnet; aggregate=:mean)
+turnover = t_turnover(dnet, 20.0)
 ```
 
 ## Choosing Analyses
 
 | Question | Function |
 |----------|----------|
-| Who is most central at time t? | [`tDegree`](@ref), [`tBetweenness`](@ref), [`tCloseness`](@ref) |
-| How fast can information spread? | [`temporalDistance`](@ref), [`forwardReachableSet`](@ref) |
-| Who can reach whom? | [`forwardReachableSet`](@ref), [`backwardReachableSet`](@ref) |
-| How stable are ties? | [`tEdgeDuration`](@ref), [`tEdgePersistence`](@ref) |
-| How much turnover is there? | [`tTurnover`](@ref), [`tieDecay`](@ref) |
-| How does the network evolve? | [`tSnaStats`](@ref), [`windowSnaStats`](@ref) |
+| Who is most central at time t? | [`t_degree`](@ref), [`t_betweenness`](@ref), [`t_closeness`](@ref) |
+| How fast can information spread? | [`temporal_distance`](@ref), [`forward_reachable_set`](@ref) |
+| Who can reach whom? | [`forward_reachable_set`](@ref), [`backward_reachable_set`](@ref) |
+| How stable are ties? | [`t_edge_duration`](@ref), [`t_edge_persistence`](@ref) |
+| How much turnover is there? | [`t_turnover`](@ref), [`tie_decay`](@ref) |
+| How does the network evolve? | [`t_sna_stats`](@ref), [`window_sna_stats`](@ref) |
 
 ## Documentation
 

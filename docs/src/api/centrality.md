@@ -7,11 +7,11 @@ This page documents the temporal centrality functions in TSNA.jl.
 Centrality measures computed on network snapshots at specific time points.
 
 ```@docs
-tDegree
-tBetweenness
-tCloseness
-tEigenvector
-tPagerank
+t_degree
+t_betweenness
+t_closeness
+t_eigenvector
+t_pagerank
 ```
 
 ## Network-Level Measures
@@ -19,9 +19,9 @@ tPagerank
 Global network statistics computed at specific time points.
 
 ```@docs
-tDensity
-tReciprocity
-tTransitivity
+t_density
+t_reciprocity
+t_transitivity
 ```
 
 ## Time Series
@@ -29,6 +29,6 @@ tTransitivity
 Functions for computing statistics at multiple time points or in sliding windows.
 
 ```@docs
-tSnaStats
-windowSnaStats
+t_sna_stats
+window_sna_stats
 ```

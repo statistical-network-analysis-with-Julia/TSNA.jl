@@ -5,20 +5,20 @@ This page documents the duration, persistence, and aggregation functions in TSNA
 ## Duration Metrics
 
 ```@docs
-tEdgeDuration
-tVertexDuration
+t_edge_duration
+t_vertex_duration
 ```
 
 ## Persistence and Turnover
 
 ```@docs
-tEdgePersistence
-tTurnover
-tieDecay
+t_edge_persistence
+t_turnover
+tie_decay
 ```
 
 ## Aggregation
 
 ```@docs
-tAggregate
+t_aggregate
 ```
