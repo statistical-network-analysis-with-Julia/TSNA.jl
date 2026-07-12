@@ -7,9 +7,9 @@ TSNA = "d87fbcfe-12dd-4101-bd65-651c391eab70"
 
 [sources]
 TSNA = {path = ".."}
-Network = {url = "https://github.com/statistical-network-analysis-with-Julia/Network.jl.git"}
-NetworkDynamic = {url = "https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl.git"}
-SNA = {url = "https://github.com/statistical-network-analysis-with-Julia/SNA.jl.git"}
+Network = {path = "../../Network.jl"}
+NetworkDynamic = {path = "../../NetworkDynamic.jl"}
+SNA = {path = "../../SNA.jl"}
 
 [compat]
 Documenter = "1"

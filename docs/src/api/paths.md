@@ -5,15 +5,18 @@ This page documents the temporal path and reachability functions in TSNA.jl.
 ## Path Types
 
 ```@docs
-tPath
+TemporalPath
+path_duration
 Contact
 ContactSequence
 ```
 
-## Temporal Distance and Path Finding
+## Earliest Arrival and Path Finding
 
 ```@docs
+earliest_arrival
 temporal_distance
+temporal_path
 shortest_temporal_path
 ```
 
@@ -28,4 +31,19 @@ backward_reachable_set
 
 ```@docs
 as_contact_sequence
+```
+
+## R-Style Aliases
+
+Every function above is also exported under its R `tsna`-style camelCase
+name; both spellings are interchangeable.
+
+```@docs
+tPath
+earliestArrival
+temporalDistance
+temporalPath
+shortestTemporalPath
+forwardReachableSet
+backwardReachableSet
 ```

@@ -25,7 +25,7 @@ Temporal view:  A --(t=5)--> B --(t=3)--> C    (A cannot reach C: edge B->C occu
 |---------|-------------|
 | **Temporal Centrality** | Centrality measures computed on network snapshots at specific times |
 | **Temporal Path** | A path where edge traversals occur in non-decreasing time order |
-| **Temporal Distance** | Earliest arrival time from source to target |
+| **Temporal Distance** | Elapsed time of the earliest time-respecting path (`nothing` when unreachable) |
 | **Forward Reachability** | Set of vertices reachable from a source after a start time |
 | **Backward Reachability** | Set of vertices that can reach a target before an end time |
 | **Edge Duration** | Total time an edge is active |
@@ -45,7 +45,7 @@ Temporal SNA is used in:
 ## Features
 
 - **Temporal centrality**: Time-varying degree, betweenness, closeness, eigenvector, and PageRank
-- **Temporal paths**: Find shortest time-respecting paths and earliest arrival times
+- **Temporal paths**: Find earliest-arrival time-respecting paths and arrival times
 - **Reachability analysis**: Forward and backward reachable sets from any vertex
 - **Duration metrics**: Edge and vertex activity duration, persistence, and turnover rates
 - **Contact sequences**: Convert dynamic networks to temporal contact sequences
@@ -148,6 +148,15 @@ This constraint means that temporal reachability is **not symmetric** and **not 
 The temporal distance from $s$ to $r$ starting at $t_0$ is the earliest time at which $r$ can be reached:
 
 $$d_T(s, r, t_0) = \min\{t_k : \exists \text{ time-respecting path } s \to r \text{ starting at } t_0 \text{ arriving at } t_k\}$$
+
+[`temporal_distance`](@ref) reports this as the *elapsed* time
+$d_T(s, r, t_0) - t_0$, and returns `nothing` when no such path exists.
+
+## Module Reference
+
+```@docs
+TSNA
+```
 
 ## References
 

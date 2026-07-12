@@ -15,9 +15,11 @@ centrality_values = t_centrality(dnet, at_time; options...)
 
 They work by:
 
-1. Extracting a static network snapshot at the specified time using `network_extract`
-2. Computing the standard centrality measure on the snapshot using Graphs.jl algorithms
-3. Returning a vector of centrality values, one per active vertex
+1. Extracting a static network snapshot at the specified time using
+   `network_extract` with `retain_all_vertices=true`
+2. Computing the standard centrality measure on the snapshot using SNA.jl
+3. Returning a vector of centrality values of length `nv(dnet)`, indexed
+   by the network's own vertex IDs (inactive vertices score 0)
 
 ## Degree Centrality
 
@@ -90,13 +92,13 @@ Betweenness centrality measures how often a vertex lies on shortest paths betwee
 bet = t_betweenness(dnet, 50.0)
 println("Betweenness at t=50: ", round.(bet, digits=3))
 
-# Unnormalized
-bet_raw = t_betweenness(dnet, 50.0; normalized=false)
+# Normalized by (n-1)(n-2)
+bet_norm = t_betweenness(dnet, 50.0; normalized=true)
 ```
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `normalized` | Normalize by $(n-1)(n-2)$ | `true` |
+| `normalized` | Normalize by $(n-1)(n-2)$ | `false` (raw scores, as in SNA.jl) |
 
 **Interpretation**: A vertex with high betweenness acts as a bridge or broker between different parts of the network. Temporal betweenness reveals when these brokerage positions exist.
 
@@ -259,15 +261,16 @@ end
 | `:reciprocity` | Proportion of reciprocated edges |
 | `:transitivity` | Global clustering coefficient |
 | `:n_edges` | Number of active edges |
-| `:n_vertices` | Number of active vertices |
-| `:mean_degree` | Mean degree (2 * edges / vertices) |
+| `:mean_degree` | Mean degree (`2 * edges / vertices` undirected, `edges / vertices` directed) |
 
 ### Window-Based Statistics
 
-Use `window_sna_stats` to compute statistics in sliding windows rather than at point-in-time snapshots:
+Use `window_sna_stats` to sample statistics at the start of consecutive
+windows spanning the observation period (a convenience wrapper around
+`t_sna_stats` — no need to build the time grid yourself):
 
 ```julia
-# Statistics in consecutive 10-unit windows
+# Statistics sampled every 10 time units
 stats = window_sna_stats(dnet, 10.0;
     measures=[:density, :n_edges]
 )
@@ -276,7 +279,8 @@ println("Window densities: ", round.([row.density for row in stats], digits=3))
 println("Window edge counts: ", [Int(row.n_edges) for row in stats])
 ```
 
-The window extraction uses `network_extract(dnet, t, t+window_size; rule=:any)`, including all elements active at any point during the window.
+Each window of length `window_size` contributes one snapshot taken at the
+window's start time.
 
 ## Practical Considerations
 
@@ -286,20 +290,24 @@ At some time points, no vertices or edges may be active:
 
 ```julia
 deg = t_degree(dnet, 200.0)  # After observation period
-# May return empty vector or zeros
+# Returns a length-nv(dnet) vector of zeros
 ```
 
-Always check that the snapshot has sufficient vertices before computing centrality.
+Check that the snapshot has active edges before interpreting centrality
+scores.
 
-### Vertex Re-indexing
+### Vertex Indexing
 
-When extracting snapshots, only active vertices are included and re-indexed. This means vertex IDs in the centrality vector may not correspond to the original vertex IDs:
+Snapshots retain **every** vertex (`retain_all_vertices=true`), so the
+returned vectors always have length `nv(dnet)` and are indexed by the
+dynamic network's own vertex IDs — even when some vertices are inactive
+at the query time (they simply score 0):
 
 ```julia
-# If vertices 3, 5, 7 are active at t=50
-# deg[1] corresponds to vertex 3
-# deg[2] corresponds to vertex 5
-# deg[3] corresponds to vertex 7
+# If only vertices 3, 5, 7 are active at t=50
+deg = t_degree(dnet, 50.0)
+# length(deg) == nv(dnet); deg[3], deg[5], deg[7] carry the activity,
+# all other entries are 0
 ```
 
 ### Disconnected Components
@@ -317,4 +325,4 @@ Some centrality measures (closeness, eigenvector) may behave unexpectedly on dis
 3. **Track over time**: Compute centrality at multiple time points to reveal dynamics
 4. **Compare measures**: Different centrality measures highlight different aspects of temporal importance
 5. **Consider direction**: Use `:in` and `:out` modes for directed networks to distinguish popularity from activity
-6. **Window vs. point**: Use `t_sna_stats` for point-in-time snapshots, `window_sna_stats` for aggregated views
+6. **Grid vs. custom times**: Use `t_sna_stats` with your own time points, `window_sna_stats` for a regular grid spanning the observation period

@@ -118,24 +118,26 @@ end
 
 ### Temporal Distance
 
-Find the earliest arrival time from one vertex to another:
+Find the elapsed time of the fastest time-respecting route from one
+vertex to another (`nothing` when the target is unreachable):
 
 ```julia
 # How quickly can information travel from vertex 1 to vertex 5?
 dist = temporal_distance(dnet, 1, 5, 0.0)
-println("Earliest arrival at v5 from v1 starting at t=0: $dist")
+println("Fastest route v1 -> v5 starting at t=0 takes: $dist")
 
 # Starting at a later time
 dist_late = temporal_distance(dnet, 1, 5, 50.0)
-println("Earliest arrival at v5 from v1 starting at t=50: $dist_late")
+println("Fastest route v1 -> v5 starting at t=50 takes: $dist_late")
 ```
 
-### Shortest Temporal Path
+### Earliest-Arrival Temporal Path
 
-Find the actual path, not just the arrival time:
+Find the actual path, not just the elapsed time (`temporal_path` returns
+the earliest-arrival path; `shortest_temporal_path` is an alias):
 
 ```julia
-path = shortest_temporal_path(dnet, 1, 5, 0.0)
+path = temporal_path(dnet, 1, 5, 0.0)
 
 if !isnothing(path)
     println("Path found: ", path)
@@ -231,7 +233,7 @@ end
 
 ### Tie Decay
 
-Estimate the rate at which ties decay:
+Compute per-edge tie weights decayed by time since last activity:
 
 ```julia
 # Per-edge decayed weights: exp(-rate·Δ) with Δ the time since the edge
@@ -289,9 +291,9 @@ for t_start in [0.0, 10.0, 20.0, 30.0]
 end
 
 # 3. Temporal paths
-println("\n=== Shortest Paths from v1 ===")
+println("\n=== Earliest-Arrival Paths from v1 ===")
 for target in [4, 6, 8]
-    path = shortest_temporal_path(dnet, 1, target, 0.0)
+    path = temporal_path(dnet, 1, target, 0.0)
     if !isnothing(path)
         println("v1 -> v$target: $(length(path.edges)) edges, arrival at t=$(path.times[end])")
     else

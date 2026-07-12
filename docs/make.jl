@@ -12,7 +12,7 @@ makedocs(
         canonical = "https://Statistical-network-analysis-with-Julia.github.io/TSNA.jl",
         edit_link = "main",
     ),
-    repo = "https://github.com/Statistical-network-analysis-with-Julia/TSNA.jl/blob/{commit}{path}#{line}",
+    repo = Documenter.Remotes.GitHub("Statistical-network-analysis-with-Julia", "TSNA.jl"),
     pages = [
         "Home" => "index.md",
         "Getting Started" => "getting_started.md",

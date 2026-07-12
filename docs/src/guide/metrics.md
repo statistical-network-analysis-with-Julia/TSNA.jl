@@ -15,7 +15,7 @@ While centrality and path analysis describe the network at specific times, durat
 
 ### t_edge_duration
 
-Compute the total duration of edge activity:
+Summarize edge activity durations:
 
 ```julia
 using NetworkDynamic
@@ -59,7 +59,9 @@ println("  Spell durations: ", all_durs)
 
 ### Multiple Spells
 
-When an edge has multiple activity spells, `t_edge_duration` sums them:
+By default (`mode=:spell`, matching `tsna::edgeDuration`) each activity
+spell contributes its own duration; pass `mode=:total` to sum the spells
+of each edge first:
 
 ```julia
 # Edge (1,2) active in two periods
@@ -76,18 +78,16 @@ println("Per-edge total durations: ", durs)
 
 ### t_vertex_duration
 
-Compute the total duration of vertex activity:
+Summarize vertex activity durations:
 
 ```julia
 # Mean vertex activity duration
 v_dur = t_vertex_duration(dnet; aggregate=:mean)
 println("Mean vertex duration: $v_dur")
 
-# All vertex durations
-all_v_dur = t_vertex_duration(dnet; aggregate=:all)
-for (i, dur) in enumerate(all_v_dur)
-    println("  Vertex $i: $dur")
-end
+# Raw durations (per spell; use mode=:total for per-vertex totals)
+all_v_dur = t_vertex_duration(dnet; mode=:total, aggregate=:all)
+println("Per-vertex total durations: ", all_v_dur)
 ```
 
 The same aggregation options (`:mean`, `:median`, `:total`, `:all`) apply.
@@ -119,6 +119,7 @@ println("Persistence (window=20): $(round(persistence, digits=3))")
 | ~1.0 | Very stable network (almost no edge turnover) |
 | ~0.5 | Moderate turnover (half of edges change per window) |
 | ~0.0 | High turnover (almost complete edge replacement) |
+| `NaN` | Fewer than two windows, or no active edges to track |
 
 ### Window Size Sensitivity
 
@@ -131,6 +132,28 @@ end
 ```
 
 Larger windows allow more time for changes, so persistence generally decreases with window size.
+
+## Formation and Dissolution Events
+
+### t_edge_formation and t_edge_dissolution
+
+Count edge-spell events in an arbitrary window `[onset, terminus)`:
+
+```julia
+# How many spells started in [0, 50)?
+nf = t_edge_formation(dnet, 0.0, 50.0)
+println("Formations in [0, 50): $nf")
+
+# How many spells ended in [0, 50)?
+nd = t_edge_dissolution(dnet, 0.0, 50.0)
+println("Dissolutions in [0, 50): $nd")
+```
+
+`t_edge_formation` counts spell **onsets** and `t_edge_dissolution`
+counts spell **termini** falling inside the window. Right-censored spells
+(those still active when observation ended) are excluded from the
+dissolution count — a censored terminus is an artifact of the observation
+window, not a real dissolution event.
 
 ## Turnover
 
@@ -160,13 +183,13 @@ end
 
 ### Understanding Rates
 
-The **formation rate** is the probability that a non-edge becomes an edge in the next window:
+Formations and dissolutions are counted as **spell events** (onsets and
+termini falling inside the window, right-censored termini excluded), and
+each rate is the event count divided by the window length:
 
-$$\text{formation rate} = \frac{\text{new edges at } t+1}{\text{non-edges at } t}$$
-
-The **dissolution rate** is the probability that an edge dissolves in the next window:
-
-$$\text{dissolution rate} = \frac{\text{dissolved edges at } t+1}{\text{edges at } t}$$
+$$\text{formation rate} = \frac{\text{spell onsets in window}}{\text{window length}}
+\qquad
+\text{dissolution rate} = \frac{\text{spell termini in window}}{\text{window length}}$$
 
 ### Turnover Analysis
 
@@ -230,10 +253,10 @@ end
 
 ```julia
 struct Contact{T, Time}
-    source::T       # Source vertex
-    target::T       # Target vertex
-    time::Time      # Start time
-    duration::Time  # Duration of contact
+    source::T   # Source vertex
+    target::T   # Target vertex
+    time::Time  # Start time
+    duration    # Duration of contact (terminus - onset)
 end
 ```
 
@@ -323,9 +346,10 @@ for row in stats
 end
 ```
 
-### Sliding Window Statistics
+### Window-Based Statistics
 
-Use `window_sna_stats` to compute statistics in sliding windows:
+Use `window_sna_stats` to sample statistics at the start of consecutive
+windows spanning the observation period:
 
 ```julia
 stats = window_sna_stats(dnet, 20.0;
@@ -335,22 +359,24 @@ stats = window_sna_stats(dnet, 20.0;
 println("Window densities: ", round.([row.density for row in stats], digits=3))
 ```
 
-### Comparing Point-in-Time vs. Window
+### Comparing Custom Times vs. Window Grid
 
 ```julia
 times = collect(0.0:10.0:100.0)
 
-# Point-in-time: what is the density at each instant?
+# Custom time points (includes the endpoint t=100)
 point_stats = t_sna_stats(dnet, times; measures=[:density])
 
-# Window: what is the density aggregated over each 10-unit window?
+# Regular grid: one snapshot at the start of each 10-unit window
 window_stats = window_sna_stats(dnet, 10.0; measures=[:density])
 
 println("Point densities: ", round.([row.density for row in point_stats], digits=3))
 println("Window densities: ", round.([row.density for row in window_stats], digits=3))
 ```
 
-Point-in-time measures capture the instantaneous state. Window measures capture aggregate activity over a period and are typically higher (more edges are active at some point during the window than at any single instant).
+Both compute the same point-in-time snapshot statistics;
+`window_sna_stats` just builds the time grid for you (one snapshot at the
+start of each window, so the observation end itself is not sampled).
 
 ## Complete Dynamics Example
 

@@ -32,3 +32,21 @@ Functions for computing statistics at multiple time points or in sliding windows
 t_sna_stats
 window_sna_stats
 ```
+
+## R-Style Aliases
+
+Every function above is also exported under its R `tsna`-style camelCase
+name; both spellings are interchangeable.
+
+```@docs
+tDegree
+tBetweenness
+tCloseness
+tEigenvector
+tPagerank
+tDensity
+tReciprocity
+tTransitivity
+tSnaStats
+windowSnaStats
+```
