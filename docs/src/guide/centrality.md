@@ -230,21 +230,21 @@ Use `tSnaStats` to compute multiple statistics at a series of time points:
 ```julia
 times = collect(0.0:10.0:100.0)
 stats = tSnaStats(dnet, times;
-    stats=[:density, :reciprocity, :transitivity, :n_edges, :n_vertices, :mean_degree]
+    measures=[:density, :reciprocity, :transitivity, :n_edges, :mean_degree]
 )
 
-# Access results
-densities = stats[:density]
-reciprocities = stats[:reciprocity]
-edge_counts = stats[:n_edges]
+# Access results (one NamedTuple row per time point)
+densities = [row.density for row in stats]
+reciprocities = [row.reciprocity for row in stats]
+edge_counts = [row.n_edges for row in stats]
 
 # Print table
 println("Time\tDensity\tRecip\tEdges\tMean Deg")
-for (i, t) in enumerate(times)
-    println("$(t)\t$(round(stats[:density][i], digits=3))\t",
-            "$(round(stats[:reciprocity][i], digits=3))\t",
-            "$(Int(stats[:n_edges][i]))\t",
-            "$(round(stats[:mean_degree][i], digits=2))")
+for row in stats
+    println("$(row.time)\t$(round(row.density, digits=3))\t",
+            "$(round(row.reciprocity, digits=3))\t",
+            "$(Int(row.n_edges))\t",
+            "$(round(row.mean_degree, digits=2))")
 end
 ```
 
@@ -264,14 +264,13 @@ end
 Use `windowSnaStats` to compute statistics in sliding windows rather than at point-in-time snapshots:
 
 ```julia
-# Statistics in 10-unit windows with 5-unit step
+# Statistics in consecutive 10-unit windows
 stats = windowSnaStats(dnet, 10.0;
-    stats=[:density, :n_edges],
-    step=5.0
+    measures=[:density, :n_edges]
 )
 
-println("Window densities: ", round.(stats[:density], digits=3))
-println("Window edge counts: ", stats[:n_edges])
+println("Window densities: ", round.([row.density for row in stats], digits=3))
+println("Window edge counts: ", [Int(row.n_edges) for row in stats])
 ```
 
 The window extraction uses `network_extract(dnet, t, t+window_size; rule=:any)`, including all elements active at any point during the window.

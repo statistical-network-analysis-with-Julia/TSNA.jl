@@ -5,7 +5,7 @@
 [![Build Status](https://github.com/statistical-network-analysis-with-Julia/TSNA.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/statistical-network-analysis-with-Julia/TSNA.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://statistical-network-analysis-with-Julia.github.io/TSNA.jl/stable/)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://statistical-network-analysis-with-Julia.github.io/TSNA.jl/dev/)
-[![Julia](https://img.shields.io/badge/Julia-1.9+-purple.svg)](https://julialang.org/)
+[![Julia](https://img.shields.io/badge/Julia-1.12+-purple.svg)](https://julialang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 <p align="center">
@@ -42,23 +42,29 @@ using TSNA
 
 # Create dynamic network
 dnet = DynamicNetwork(10; observation_start=0.0, observation_end=100.0)
-# ... add activity spells ...
+for i in 1:10
+    activate!(dnet, 0.0, 100.0; vertex=i)
+end
+activate!(dnet, 0.0, 60.0; edge=(1, 2))
+activate!(dnet, 10.0, 80.0; edge=(2, 5))
 
 # Temporal centrality at time 50
 deg = tDegree(dnet, 50.0)
 bet = tBetweenness(dnet, 50.0)
 
-# Temporal path finding
-dist = temporalDistance(dnet, source, target, start_time)
-path = shortestTemporalPath(dnet, source, target, start_time)
+# Temporal path finding (from vertex 1 to vertex 5, starting at t=0)
+dist = temporalDistance(dnet, 1, 5, 0.0)
+path = shortestTemporalPath(dnet, 1, 5, 0.0)
 
 # Reachability
-reachable = forwardReachableSet(dnet, source, start_time)
+reachable = forwardReachableSet(dnet, 1, 0.0)
 ```
 
 ## Temporal Centrality
 
 ```julia
+at = 50.0   # evaluation time used below
+
 # At a specific time point
 tDegree(dnet, at; mode=:total)      # :in, :out, or :total
 tBetweenness(dnet, at)
@@ -77,13 +83,14 @@ tTransitivity(dnet, at)
 
 # Over time series
 times = 0.0:10.0:100.0
-stats = tSnaStats(dnet, times; stats=[:density, :reciprocity])
+stats = tSnaStats(dnet, times; measures=[:density, :reciprocity])
 ```
 
 ## Temporal Paths
 
 A temporal path must have non-decreasing times - you can only traverse edges when they're active.
 
+<!-- skip-check -->
 ```julia
 # Temporal path structure
 struct tPath{T, Time}
@@ -101,6 +108,7 @@ path = shortestTemporalPath(dnet, source, target, start_time)
 
 ## Reachability
 
+<!-- skip-check -->
 ```julia
 # Who can source reach starting at start_time?
 forward = forwardReachableSet(dnet, source, start_time)
@@ -119,11 +127,8 @@ all_durs = tEdgeDuration(dnet; aggregate=:all)  # Per-edge Dict
 # Vertex duration
 tVertexDuration(dnet; aggregate=:mean)
 
-# Edge persistence across time windows
-persistence = tEdgePersistence(dnet, window_size)
-
-# Turnover rates
-turnover = tTurnover(dnet, window_size)
+# Turnover rates in 10-unit windows
+turnover = tTurnover(dnet, 10.0)
 # Returns: (formation_rate, dissolution_rate, n_formations, n_dissolutions)
 
 # Tie decay rate
@@ -135,7 +140,7 @@ decay_rate = tieDecay(dnet; method=:exponential)
 ```julia
 # Statistics at multiple time points
 times = collect(0.0:5.0:100.0)
-stats = tSnaStats(dnet, times; stats=[:density, :n_edges, :mean_degree])
+stats = tSnaStats(dnet, times; measures=[:density, :n_edges, :mean_degree])
 
 # Statistics in sliding windows
 stats = windowSnaStats(dnet, window_size;
@@ -150,6 +155,7 @@ static = tAggregate(dnet; method=:weighted)     # Weight = total time
 
 ## Contact Sequences
 
+<!-- skip-check -->
 ```julia
 # Convert to contact sequence
 cs = as_contact_sequence(dnet)
@@ -165,6 +171,7 @@ end
 
 ## Example: Information Spread
 
+<!-- skip-check -->
 ```julia
 # Who could receive information from source within time window?
 start_time = 0.0

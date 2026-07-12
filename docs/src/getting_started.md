@@ -27,6 +27,7 @@ The typical TSNA.jl workflow consists of four steps:
 TSNA.jl operates on `DynamicNetwork` objects from NetworkDynamic.jl:
 
 ```julia
+using Network   # nv, ne on snapshots
 using NetworkDynamic
 using TSNA
 
@@ -99,14 +100,14 @@ println("Transitivity at t=50: $(round(tr, digits=3))")
 ```julia
 # Compute density and reciprocity at regular intervals
 times = collect(0.0:10.0:100.0)
-stats = tSnaStats(dnet, times; stats=[:density, :reciprocity, :n_edges])
+stats = tSnaStats(dnet, times; measures=[:density, :reciprocity, :n_edges])
 
 println("Time\tDensity\tReciprocity\tEdges")
-for (i, t) in enumerate(times)
-    d = round(stats[:density][i], digits=3)
-    r = round(stats[:reciprocity][i], digits=3)
-    e = Int(stats[:n_edges][i])
-    println("$t\t$d\t$r\t\t$e")
+for row in stats   # one NamedTuple per time point
+    d = round(row.density, digits=3)
+    r = round(row.reciprocity, digits=3)
+    e = Int(row.n_edges)
+    println("$(row.time)\t$d\t$r\t\t$e")
 end
 ```
 
@@ -306,11 +307,11 @@ println("Dissolution rate: $(round(turnover.dissolution_rate, digits=4))")
 # 5. Network evolution
 println("\n=== Network Evolution ===")
 times = collect(0.0:5.0:50.0)
-stats = tSnaStats(dnet, times; stats=[:density, :n_edges, :mean_degree])
-for (i, t) in enumerate(times)
-    println("t=$t: edges=$(Int(stats[:n_edges][i])), ",
-            "density=$(round(stats[:density][i], digits=3)), ",
-            "mean_deg=$(round(stats[:mean_degree][i], digits=2))")
+stats = tSnaStats(dnet, times; measures=[:density, :n_edges, :mean_degree])
+for row in stats
+    println("t=$(row.time): edges=$(Int(row.n_edges)), ",
+            "density=$(round(row.density, digits=3)), ",
+            "mean_deg=$(round(row.mean_degree, digits=2))")
 end
 ```
 

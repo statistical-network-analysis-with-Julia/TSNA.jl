@@ -305,13 +305,13 @@ Use `tSnaStats` to compute SNA statistics at regular time points:
 ```julia
 times = collect(0.0:5.0:100.0)
 stats = tSnaStats(dnet, times;
-    stats=[:density, :reciprocity, :n_edges, :mean_degree]
+    measures=[:density, :reciprocity, :n_edges, :mean_degree]
 )
 
-# Plot-ready data
-for (i, t) in enumerate(times)
-    println("t=$t: density=$(round(stats[:density][i], digits=3)), ",
-            "edges=$(Int(stats[:n_edges][i]))")
+# Plot-ready data (one NamedTuple row per time point)
+for row in stats
+    println("t=$(row.time): density=$(round(row.density, digits=3)), ",
+            "edges=$(Int(row.n_edges))")
 end
 ```
 
@@ -321,11 +321,10 @@ Use `windowSnaStats` to compute statistics in sliding windows:
 
 ```julia
 stats = windowSnaStats(dnet, 20.0;
-    stats=[:density, :n_edges],
-    step=10.0  # 50% overlap
+    measures=[:density, :n_edges]
 )
 
-println("Window densities: ", round.(stats[:density], digits=3))
+println("Window densities: ", round.([row.density for row in stats], digits=3))
 ```
 
 ### Comparing Point-in-Time vs. Window
@@ -334,13 +333,13 @@ println("Window densities: ", round.(stats[:density], digits=3))
 times = collect(0.0:10.0:100.0)
 
 # Point-in-time: what is the density at each instant?
-point_stats = tSnaStats(dnet, times; stats=[:density])
+point_stats = tSnaStats(dnet, times; measures=[:density])
 
 # Window: what is the density aggregated over each 10-unit window?
-window_stats = windowSnaStats(dnet, 10.0; stats=[:density])
+window_stats = windowSnaStats(dnet, 10.0; measures=[:density])
 
-println("Point densities: ", round.(point_stats[:density], digits=3))
-println("Window densities: ", round.(window_stats[:density], digits=3))
+println("Point densities: ", round.([row.density for row in point_stats], digits=3))
+println("Window densities: ", round.([row.density for row in window_stats], digits=3))
 ```
 
 Point-in-time measures capture the instantaneous state. Window measures capture aggregate activity over a period and are typically higher (more edges are active at some point during the window than at any single instant).
@@ -395,10 +394,10 @@ println("Expected tie lifetime: $(round(1/decay, digits=1))")
 
 println("\n=== Network Evolution ===")
 times = collect(0.0:10.0:100.0)
-stats = tSnaStats(dnet, times; stats=[:density, :n_edges])
-for (i, t) in enumerate(times)
-    println("t=$t: $(Int(stats[:n_edges][i])) edges, ",
-            "density=$(round(stats[:density][i], digits=3))")
+stats = tSnaStats(dnet, times; measures=[:density, :n_edges])
+for row in stats
+    println("t=$(row.time): $(Int(row.n_edges)) edges, ",
+            "density=$(round(row.density, digits=3))")
 end
 ```
 
