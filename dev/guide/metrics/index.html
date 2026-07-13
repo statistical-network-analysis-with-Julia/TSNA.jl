@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Duration Metrics · TSNA.jl</title><meta name="title" content="Duration Metrics · TSNA.jl"/><meta property="og:title" content="Duration Metrics · TSNA.jl"/><meta property="twitter:title" content="Duration Metrics · TSNA.jl"/><meta name="description" content="Documentation for TSNA.jl."/><meta property="og:description" content="Documentation for TSNA.jl."/><meta property="twitter:description" content="Documentation for TSNA.jl."/><meta property="og:url" content="https://Statistical-network-analysis-with-Julia.github.io/TSNA.jl/guide/metrics/"/><meta property="twitter:url" content="https://Statistical-network-analysis-with-Julia.github.io/TSNA.jl/guide/metrics/"/><link rel="canonical" href="https://Statistical-network-analysis-with-Julia.github.io/TSNA.jl/guide/metrics/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.svg" alt="TSNA.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">TSNA.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../getting_started/">Getting Started</a></li><li><span class="tocitem">User Guide</span><ul><li><a class="tocitem" href="../centrality/">Temporal Centrality</a></li><li><a class="tocitem" href="../paths/">Temporal Paths</a></li><li class="is-active"><a class="tocitem" href>Duration Metrics</a><ul class="internal"><li><a class="tocitem" href="#Overview"><span>Overview</span></a></li><li><a class="tocitem" href="#Edge-Duration"><span>Edge Duration</span></a></li><li><a class="tocitem" href="#Vertex-Duration"><span>Vertex Duration</span></a></li><li><a class="tocitem" href="#Edge-Persistence"><span>Edge Persistence</span></a></li><li><a class="tocitem" href="#Formation-and-Dissolution-Events"><span>Formation and Dissolution Events</span></a></li><li><a class="tocitem" href="#Turnover"><span>Turnover</span></a></li><li><a class="tocitem" href="#Tie-Decay"><span>Tie Decay</span></a></li><li><a class="tocitem" href="#Contact-Sequences"><span>Contact Sequences</span></a></li><li><a class="tocitem" href="#Network-Aggregation"><span>Network Aggregation</span></a></li><li><a class="tocitem" href="#Time-Series-Analysis"><span>Time Series Analysis</span></a></li><li><a class="tocitem" href="#Complete-Dynamics-Example"><span>Complete Dynamics Example</span></a></li><li><a class="tocitem" href="#Best-Practices"><span>Best Practices</span></a></li></ul></li></ul></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../../api/centrality/">Centrality</a></li><li><a class="tocitem" href="../../api/paths/">Paths</a></li><li><a class="tocitem" href="../../api/metrics/">Metrics</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">User Guide</a></li><li class="is-active"><a href>Duration Metrics</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Duration Metrics</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/Statistical-network-analysis-with-Julia/TSNA.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/Statistical-network-analysis-with-Julia/TSNA.jl/blob/main/docs/src/guide/metrics.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Duration-Metrics"><a class="docs-heading-anchor" href="#Duration-Metrics">Duration Metrics</a><a id="Duration-Metrics-1"></a><a class="docs-heading-anchor-permalink" href="#Duration-Metrics" title="Permalink"></a></h1><p>This guide covers the duration, persistence, turnover, and aggregation metrics available in TSNA.jl for characterizing network dynamics.</p><h2 id="Overview"><a class="docs-heading-anchor" href="#Overview">Overview</a><a id="Overview-1"></a><a class="docs-heading-anchor-permalink" href="#Overview" title="Permalink"></a></h2><p>While centrality and path analysis describe the network at specific times, duration metrics characterize <strong>how the network changes over time</strong>. They answer questions like:</p><ul><li>How long do ties last?</li><li>How stable is the network structure?</li><li>At what rate are new ties forming and old ties dissolving?</li><li>Is the network becoming denser or sparser over time?</li></ul><h2 id="Edge-Duration"><a class="docs-heading-anchor" href="#Edge-Duration">Edge Duration</a><a id="Edge-Duration-1"></a><a class="docs-heading-anchor-permalink" href="#Edge-Duration" title="Permalink"></a></h2><h3 id="t*edge*duration"><a class="docs-heading-anchor" href="#t*edge*duration">t<em>edge</em>duration</a><a id="t*edge*duration-1"></a><a class="docs-heading-anchor-permalink" href="#t*edge*duration" title="Permalink"></a></h3><p>Summarize edge activity durations:</p><pre><code class="language-julia hljs">using NetworkDynamic
+using TSNA
+
+dnet = DynamicNetwork(5; observation_start=0.0, observation_end=100.0)
+activate_vertices!(dnet, collect(1:5), 0.0, 100.0)
+
+activate!(dnet, 0.0, 50.0; edge=(1, 2))    # Duration: 50
+activate!(dnet, 10.0, 30.0; edge=(2, 3))   # Duration: 20
+activate!(dnet, 40.0, 80.0; edge=(3, 4))   # Duration: 40
+activate!(dnet, 0.0, 100.0; edge=(4, 5))   # Duration: 100
+activate!(dnet, 20.0, 40.0; edge=(1, 3))   # Duration: 20
+
+# Mean edge duration
+mean_dur = t_edge_duration(dnet; aggregate=:mean)
+println(&quot;Mean edge duration: $mean_dur&quot;)  # (50+20+40+100+20)/5 = 46.0
+
+# Median edge duration
+med_dur = t_edge_duration(dnet; aggregate=:median)
+println(&quot;Median edge duration: $med_dur&quot;)  # 40.0
+
+# Total edge-time
+total_dur = t_edge_duration(dnet; aggregate=:total)
+println(&quot;Total edge-time: $total_dur&quot;)  # 230.0
+
+# Raw per-spell durations (a Vector{Float64}; use mode=:total to sum
+# spells per edge first)
+all_durs = t_edge_duration(dnet; aggregate=:all)
+println(&quot;  Spell durations: &quot;, all_durs)</code></pre><h3 id="Aggregation-Options"><a class="docs-heading-anchor" href="#Aggregation-Options">Aggregation Options</a><a id="Aggregation-Options-1"></a><a class="docs-heading-anchor-permalink" href="#Aggregation-Options" title="Permalink"></a></h3><table><tr><th style="text-align: right">Option</th><th style="text-align: right">Description</th></tr><tr><td style="text-align: right"><code>:mean</code></td><td style="text-align: right">Mean duration across all edges</td></tr><tr><td style="text-align: right"><code>:median</code></td><td style="text-align: right">Median duration</td></tr><tr><td style="text-align: right"><code>:total</code></td><td style="text-align: right">Sum of all durations</td></tr><tr><td style="text-align: right"><code>:all</code></td><td style="text-align: right">Raw vector of durations (one per spell, or per edge with <code>mode=:total</code>)</td></tr></table><h3 id="Multiple-Spells"><a class="docs-heading-anchor" href="#Multiple-Spells">Multiple Spells</a><a id="Multiple-Spells-1"></a><a class="docs-heading-anchor-permalink" href="#Multiple-Spells" title="Permalink"></a></h3><p>By default (<code>mode=:spell</code>, matching <code>tsna::edgeDuration</code>) each activity spell contributes its own duration; pass <code>mode=:total</code> to sum the spells of each edge first:</p><pre><code class="language-julia hljs"># Edge (1,2) active in two periods
+activate!(dnet, 0.0, 20.0; edge=(1, 2))
+activate!(dnet, 40.0, 60.0; edge=(1, 2))
+
+# mode=:spell (default) keeps the two spells separate;
+# mode=:total sums them per edge: 20 + 20 = 40
+durs = t_edge_duration(dnet; mode=:total, aggregate=:all)
+println(&quot;Per-edge total durations: &quot;, durs)</code></pre><h2 id="Vertex-Duration"><a class="docs-heading-anchor" href="#Vertex-Duration">Vertex Duration</a><a id="Vertex-Duration-1"></a><a class="docs-heading-anchor-permalink" href="#Vertex-Duration" title="Permalink"></a></h2><h3 id="t*vertex*duration"><a class="docs-heading-anchor" href="#t*vertex*duration">t<em>vertex</em>duration</a><a id="t*vertex*duration-1"></a><a class="docs-heading-anchor-permalink" href="#t*vertex*duration" title="Permalink"></a></h3><p>Summarize vertex activity durations:</p><pre><code class="language-julia hljs"># Mean vertex activity duration
+v_dur = t_vertex_duration(dnet; aggregate=:mean)
+println(&quot;Mean vertex duration: $v_dur&quot;)
+
+# Raw durations (per spell; use mode=:total for per-vertex totals)
+all_v_dur = t_vertex_duration(dnet; mode=:total, aggregate=:all)
+println(&quot;Per-vertex total durations: &quot;, all_v_dur)</code></pre><p>The same aggregation options (<code>:mean</code>, <code>:median</code>, <code>:total</code>, <code>:all</code>) apply.</p><h2 id="Edge-Persistence"><a class="docs-heading-anchor" href="#Edge-Persistence">Edge Persistence</a><a id="Edge-Persistence-1"></a><a class="docs-heading-anchor-permalink" href="#Edge-Persistence" title="Permalink"></a></h2><h3 id="t*edge*persistence"><a class="docs-heading-anchor" href="#t*edge*persistence">t<em>edge</em>persistence</a><a id="t*edge*persistence-1"></a><a class="docs-heading-anchor-permalink" href="#t*edge*persistence" title="Permalink"></a></h3><p>Measures the proportion of edges that persist (survive) across time windows:</p><pre><code class="language-julia hljs"># Edge persistence across 20-unit windows
+persistence = t_edge_persistence(dnet, 20.0)
+println(&quot;Persistence (window=20): $(round(persistence, digits=3))&quot;)</code></pre><p><strong>How it works:</strong></p><ol><li>Divide the observation period into windows of the specified size</li><li>For each consecutive pair of windows <span>$(w_i, w_{i+1})$</span>:<ul><li>Count edges active at the start of <span>$w_i$</span></li><li>Count how many are also active at the start of <span>$w_{i+1}$</span></li></ul></li><li>Return the overall proportion: persisted / total</li></ol><h3 id="Interpreting-Persistence"><a class="docs-heading-anchor" href="#Interpreting-Persistence">Interpreting Persistence</a><a id="Interpreting-Persistence-1"></a><a class="docs-heading-anchor-permalink" href="#Interpreting-Persistence" title="Permalink"></a></h3><table><tr><th style="text-align: right">Persistence</th><th style="text-align: right">Interpretation</th></tr><tr><td style="text-align: right">~1.0</td><td style="text-align: right">Very stable network (almost no edge turnover)</td></tr><tr><td style="text-align: right">~0.5</td><td style="text-align: right">Moderate turnover (half of edges change per window)</td></tr><tr><td style="text-align: right">~0.0</td><td style="text-align: right">High turnover (almost complete edge replacement)</td></tr><tr><td style="text-align: right"><code>NaN</code></td><td style="text-align: right">Fewer than two windows, or no active edges to track</td></tr></table><h3 id="Window-Size-Sensitivity"><a class="docs-heading-anchor" href="#Window-Size-Sensitivity">Window Size Sensitivity</a><a id="Window-Size-Sensitivity-1"></a><a class="docs-heading-anchor-permalink" href="#Window-Size-Sensitivity" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Persistence at different window sizes
+for w in [5.0, 10.0, 20.0, 30.0, 50.0]
+    p = t_edge_persistence(dnet, w)
+    println(&quot;Window=$w: persistence=$(round(p, digits=3))&quot;)
+end</code></pre><p>Larger windows allow more time for changes, so persistence generally decreases with window size.</p><h2 id="Formation-and-Dissolution-Events"><a class="docs-heading-anchor" href="#Formation-and-Dissolution-Events">Formation and Dissolution Events</a><a id="Formation-and-Dissolution-Events-1"></a><a class="docs-heading-anchor-permalink" href="#Formation-and-Dissolution-Events" title="Permalink"></a></h2><h3 id="t*edge*formation-and-t*edge*dissolution"><a class="docs-heading-anchor" href="#t*edge*formation-and-t*edge*dissolution">t<em>edge</em>formation and t<em>edge</em>dissolution</a><a id="t*edge*formation-and-t*edge*dissolution-1"></a><a class="docs-heading-anchor-permalink" href="#t*edge*formation-and-t*edge*dissolution" title="Permalink"></a></h3><p>Count edge-spell events in an arbitrary window <code>[onset, terminus)</code>:</p><pre><code class="language-julia hljs"># How many spells started in [0, 50)?
+nf = t_edge_formation(dnet, 0.0, 50.0)
+println(&quot;Formations in [0, 50): $nf&quot;)
+
+# How many spells ended in [0, 50)?
+nd = t_edge_dissolution(dnet, 0.0, 50.0)
+println(&quot;Dissolutions in [0, 50): $nd&quot;)</code></pre><p><code>t_edge_formation</code> counts spell <strong>onsets</strong> and <code>t_edge_dissolution</code> counts spell <strong>termini</strong> falling inside the window. Right-censored spells (those still active when observation ended) are excluded from the dissolution count — a censored terminus is an artifact of the observation window, not a real dissolution event.</p><h2 id="Turnover"><a class="docs-heading-anchor" href="#Turnover">Turnover</a><a id="Turnover-1"></a><a class="docs-heading-anchor-permalink" href="#Turnover" title="Permalink"></a></h2><h3 id="t_turnover"><a class="docs-heading-anchor" href="#t_turnover">t_turnover</a><a id="t_turnover-1"></a><a class="docs-heading-anchor-permalink" href="#t_turnover" title="Permalink"></a></h3><p>Compute edge formation and dissolution rates:</p><pre><code class="language-julia hljs"># One NamedTuple per window of length 20
+for w in t_turnover(dnet, 20.0)
+    println(&quot;[$(w.window_start), $(w.window_end)): &quot;,
+            &quot;formation rate = $(round(w.formation_rate, digits=4)), &quot;,
+            &quot;dissolution rate = $(round(w.dissolution_rate, digits=4)), &quot;,
+            &quot;+$(w.n_formations)/-$(w.n_dissolutions) edges&quot;)
+end</code></pre><h3 id="Returned-Fields-(per-window)"><a class="docs-heading-anchor" href="#Returned-Fields-(per-window)">Returned Fields (per window)</a><a id="Returned-Fields-(per-window)-1"></a><a class="docs-heading-anchor-permalink" href="#Returned-Fields-(per-window)" title="Permalink"></a></h3><table><tr><th style="text-align: right">Field</th><th style="text-align: right">Description</th></tr><tr><td style="text-align: right"><code>window_start</code>, <code>window_end</code></td><td style="text-align: right">The window boundaries</td></tr><tr><td style="text-align: right"><code>n_formations</code></td><td style="text-align: right">Spell onset events in the window</td></tr><tr><td style="text-align: right"><code>n_dissolutions</code></td><td style="text-align: right">Spell terminus events in the window</td></tr><tr><td style="text-align: right"><code>formation_rate</code></td><td style="text-align: right">Formations per unit time</td></tr><tr><td style="text-align: right"><code>dissolution_rate</code></td><td style="text-align: right">Dissolutions per unit time</td></tr></table><h3 id="Understanding-Rates"><a class="docs-heading-anchor" href="#Understanding-Rates">Understanding Rates</a><a id="Understanding-Rates-1"></a><a class="docs-heading-anchor-permalink" href="#Understanding-Rates" title="Permalink"></a></h3><p>Formations and dissolutions are counted as <strong>spell events</strong> (onsets and termini falling inside the window, right-censored termini excluded), and each rate is the event count divided by the window length:</p><p class="math-container">\[\text{formation rate} = \frac{\text{spell onsets in window}}{\text{window length}}
+\qquad
+\text{dissolution rate} = \frac{\text{spell termini in window}}{\text{window length}}\]</p><h3 id="Turnover-Analysis"><a class="docs-heading-anchor" href="#Turnover-Analysis">Turnover Analysis</a><a id="Turnover-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Turnover-Analysis" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Compare turnover at different timescales (totals over all windows)
+for w in [10.0, 20.0, 30.0]
+    windows = t_turnover(dnet, w)
+    total_form = sum(x.n_formations for x in windows)
+    total_diss = sum(x.n_dissolutions for x in windows)
+    println(&quot;Window $w: +$total_form/-$total_diss, &quot;,
+            &quot;net change = $(total_form - total_diss)&quot;)
+end</code></pre><h2 id="Tie-Decay"><a class="docs-heading-anchor" href="#Tie-Decay">Tie Decay</a><a id="Tie-Decay-1"></a><a class="docs-heading-anchor-permalink" href="#Tie-Decay" title="Permalink"></a></h2><h3 id="tie_decay"><a class="docs-heading-anchor" href="#tie_decay">tie_decay</a><a id="tie_decay-1"></a><a class="docs-heading-anchor-permalink" href="#tie_decay" title="Permalink"></a></h3><p>Per-edge tie weights decayed by the time since each edge was last active (1.0 for currently active ties):</p><pre><code class="language-julia hljs"># Exponential decay: exp(-rate·Δ), Δ = time since last activity
+weights = tie_decay(dnet; method=:exponential, rate=0.1)
+println(&quot;Edge decay weights: &quot;, weights)
+
+# Linear decay: max(0, 1 - rate·Δ)
+weights_lin = tie_decay(dnet; method=:linear, rate=0.05)
+
+# Evaluate at a specific time instead of the observation end
+weights_25 = tie_decay(dnet; at=25.0)</code></pre><h3 id="Methods"><a class="docs-heading-anchor" href="#Methods">Methods</a><a id="Methods-1"></a><a class="docs-heading-anchor-permalink" href="#Methods" title="Permalink"></a></h3><table><tr><th style="text-align: right">Method</th><th style="text-align: right">Formula</th><th style="text-align: right">Interpretation</th></tr><tr><td style="text-align: right"><code>:exponential</code></td><td style="text-align: right"><span>$e^{-\text{rate}\,\Delta}$</span></td><td style="text-align: right">Smooth exponential forgetting</td></tr><tr><td style="text-align: right"><code>:linear</code></td><td style="text-align: right"><span>$\max(0,\ 1 - \text{rate}\,\Delta)$</span></td><td style="text-align: right">Weight hits zero after <span>$1/\text{rate}$</span> time units</td></tr></table><p>Where <span>$\Delta$</span> is the time from the end of the edge&#39;s most recent spell to <code>at</code> (0 for currently active ties).</p><h2 id="Contact-Sequences"><a class="docs-heading-anchor" href="#Contact-Sequences">Contact Sequences</a><a id="Contact-Sequences-1"></a><a class="docs-heading-anchor-permalink" href="#Contact-Sequences" title="Permalink"></a></h2><h3 id="as*contact*sequence"><a class="docs-heading-anchor" href="#as*contact*sequence">as<em>contact</em>sequence</a><a id="as*contact*sequence-1"></a><a class="docs-heading-anchor-permalink" href="#as*contact*sequence" title="Permalink"></a></h3><p>Convert a dynamic network to a flat sequence of contacts:</p><pre><code class="language-julia hljs">cs = as_contact_sequence(dnet)
+println(&quot;Number of contacts: $(length(cs))&quot;)
+
+for contact in cs
+    println(&quot;  $(contact.source) -&gt; $(contact.target): &quot;,
+            &quot;start=$(contact.time), duration=$(contact.duration)&quot;)
+end</code></pre><h3 id="The-Contact-Type"><a class="docs-heading-anchor" href="#The-Contact-Type">The Contact Type</a><a id="The-Contact-Type-1"></a><a class="docs-heading-anchor-permalink" href="#The-Contact-Type" title="Permalink"></a></h3><pre><code class="language-julia hljs">struct Contact{T, Time}
+    source::T   # Source vertex
+    target::T   # Target vertex
+    time::Time  # Start time
+    duration    # Duration of contact (terminus - onset)
+end</code></pre><h3 id="The-ContactSequence-Type"><a class="docs-heading-anchor" href="#The-ContactSequence-Type">The ContactSequence Type</a><a id="The-ContactSequence-Type-1"></a><a class="docs-heading-anchor-permalink" href="#The-ContactSequence-Type" title="Permalink"></a></h3><pre><code class="language-julia hljs">struct ContactSequence{T, Time}
+    contacts::Vector{Contact{T, Time}}  # Sorted by time
+    n_vertices::Int                     # Number of vertices
+    directed::Bool                      # Whether directed
+end</code></pre><p>Contact sequences are sorted by time and support iteration:</p><pre><code class="language-julia hljs">cs = as_contact_sequence(dnet)
+
+# Iterate over contacts
+for c in cs
+    println(&quot;$(c.source) -&gt; $(c.target) at t=$(c.time)&quot;)
+end</code></pre><h2 id="Network-Aggregation"><a class="docs-heading-anchor" href="#Network-Aggregation">Network Aggregation</a><a id="Network-Aggregation-1"></a><a class="docs-heading-anchor-permalink" href="#Network-Aggregation" title="Permalink"></a></h2><h3 id="t_aggregate"><a class="docs-heading-anchor" href="#t_aggregate">t_aggregate</a><a id="t_aggregate-1"></a><a class="docs-heading-anchor-permalink" href="#t_aggregate" title="Permalink"></a></h3><p>Collapse a dynamic network to a static network:</p><pre><code class="language-julia hljs">using Networks   # for ne on the aggregated static networks
+
+# Union: include any edge that was ever active
+static_union = t_aggregate(dnet; method=:union)
+println(&quot;Union: $(ne(static_union)) edges&quot;)
+
+# Intersection: include edges active throughout the entire observation period
+static_inter = t_aggregate(dnet; method=:intersection)
+println(&quot;Intersection: $(ne(static_inter)) edges&quot;)
+
+# Weighted: weight by total activation time
+static_weighted = t_aggregate(dnet; method=:weighted)
+println(&quot;Weighted: $(ne(static_weighted)) edges&quot;)</code></pre><h3 id="Aggregation-Methods"><a class="docs-heading-anchor" href="#Aggregation-Methods">Aggregation Methods</a><a id="Aggregation-Methods-1"></a><a class="docs-heading-anchor-permalink" href="#Aggregation-Methods" title="Permalink"></a></h3><table><tr><th style="text-align: right">Method</th><th style="text-align: right">Include Edge If</th><th style="text-align: right">Weight</th></tr><tr><td style="text-align: right"><code>:union</code></td><td style="text-align: right">Edge was ever active</td><td style="text-align: right">1.0</td></tr><tr><td style="text-align: right"><code>:intersection</code></td><td style="text-align: right">Edge active throughout entire observation period</td><td style="text-align: right">1.0</td></tr><tr><td style="text-align: right"><code>:weighted</code></td><td style="text-align: right">Edge was ever active</td><td style="text-align: right">Total activation time</td></tr></table><h3 id="Weighted-Aggregation"><a class="docs-heading-anchor" href="#Weighted-Aggregation">Weighted Aggregation</a><a id="Weighted-Aggregation-1"></a><a class="docs-heading-anchor-permalink" href="#Weighted-Aggregation" title="Permalink"></a></h3><p>The weighted method creates a static network where edge weights represent total activity time:</p><pre><code class="language-julia hljs">using Graphs: src, dst
+
+static = t_aggregate(dnet; method=:weighted)
+
+# Access edge weights
+for e in edges(static)
+    w = get_edge_attribute(static, :weight, src(e), dst(e))
+    println(&quot;Edge $(src(e))-&gt;$(dst(e)): weight = $w&quot;)
+end</code></pre><h2 id="Time-Series-Analysis"><a class="docs-heading-anchor" href="#Time-Series-Analysis">Time Series Analysis</a><a id="Time-Series-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Time-Series-Analysis" title="Permalink"></a></h2><h3 id="Regular-Interval-Statistics"><a class="docs-heading-anchor" href="#Regular-Interval-Statistics">Regular Interval Statistics</a><a id="Regular-Interval-Statistics-1"></a><a class="docs-heading-anchor-permalink" href="#Regular-Interval-Statistics" title="Permalink"></a></h3><p>Use <code>t_sna_stats</code> to compute SNA statistics at regular time points:</p><pre><code class="language-julia hljs">times = collect(0.0:5.0:100.0)
+stats = t_sna_stats(dnet, times;
+    measures=[:density, :reciprocity, :n_edges, :mean_degree]
+)
+
+# Plot-ready data (one NamedTuple row per time point)
+for row in stats
+    println(&quot;t=$(row.time): density=$(round(row.density, digits=3)), &quot;,
+            &quot;edges=$(Int(row.n_edges))&quot;)
+end</code></pre><h3 id="Window-Based-Statistics"><a class="docs-heading-anchor" href="#Window-Based-Statistics">Window-Based Statistics</a><a id="Window-Based-Statistics-1"></a><a class="docs-heading-anchor-permalink" href="#Window-Based-Statistics" title="Permalink"></a></h3><p>Use <code>window_sna_stats</code> to sample statistics at the start of consecutive windows spanning the observation period:</p><pre><code class="language-julia hljs">stats = window_sna_stats(dnet, 20.0;
+    measures=[:density, :n_edges]
+)
+
+println(&quot;Window densities: &quot;, round.([row.density for row in stats], digits=3))</code></pre><h3 id="Comparing-Custom-Times-vs.-Window-Grid"><a class="docs-heading-anchor" href="#Comparing-Custom-Times-vs.-Window-Grid">Comparing Custom Times vs. Window Grid</a><a id="Comparing-Custom-Times-vs.-Window-Grid-1"></a><a class="docs-heading-anchor-permalink" href="#Comparing-Custom-Times-vs.-Window-Grid" title="Permalink"></a></h3><pre><code class="language-julia hljs">times = collect(0.0:10.0:100.0)
+
+# Custom time points (includes the endpoint t=100)
+point_stats = t_sna_stats(dnet, times; measures=[:density])
+
+# Regular grid: one snapshot at the start of each 10-unit window
+window_stats = window_sna_stats(dnet, 10.0; measures=[:density])
+
+println(&quot;Point densities: &quot;, round.([row.density for row in point_stats], digits=3))
+println(&quot;Window densities: &quot;, round.([row.density for row in window_stats], digits=3))</code></pre><p>Both compute the same point-in-time snapshot statistics; <code>window_sna_stats</code> just builds the time grid for you (one snapshot at the start of each window, so the observation end itself is not sampled).</p><h2 id="Complete-Dynamics-Example"><a class="docs-heading-anchor" href="#Complete-Dynamics-Example">Complete Dynamics Example</a><a id="Complete-Dynamics-Example-1"></a><a class="docs-heading-anchor-permalink" href="#Complete-Dynamics-Example" title="Permalink"></a></h2><pre><code class="language-julia hljs">using NetworkDynamic
+using TSNA
+
+# Create a network with known dynamics
+n = 15
+dnet = DynamicNetwork(n; observation_start=0.0, observation_end=100.0)
+activate_vertices!(dnet, collect(1:n), 0.0, 100.0)
+
+# Phase 1 (0-30): Initial connections form
+for i in 1:5
+    activate!(dnet, 0.0, 40.0; edge=(i, i+1))
+end
+
+# Phase 2 (20-60): Network densifies
+for i in 1:10
+    activate!(dnet, 20.0, 60.0; edge=(i, mod1(i+2, n)))
+end
+
+# Phase 3 (50-100): Some ties persist, others dissolve
+for i in 1:8
+    activate!(dnet, 50.0, 100.0; edge=(i, mod1(i+3, n)))
+end
+
+# === Full Dynamics Analysis ===
+
+println(&quot;=== Edge Duration ===&quot;)
+dur = t_edge_duration(dnet; aggregate=:mean)
+println(&quot;Mean edge duration: $(round(dur, digits=1))&quot;)
+
+println(&quot;\n=== Persistence ===&quot;)
+for w in [10.0, 20.0, 30.0]
+    p = t_edge_persistence(dnet, w)
+    println(&quot;Window $w: $(round(p, digits=3))&quot;)
+end
+
+println(&quot;\n=== Turnover ===&quot;)
+for w in t_turnover(dnet, 20.0)
+    println(&quot;[$(w.window_start), $(w.window_end)): &quot;,
+            &quot;+$(w.n_formations)/-$(w.n_dissolutions)&quot;)
+end
+
+println(&quot;\n=== Tie Decay ===&quot;)
+weights = tie_decay(dnet; method=:exponential)
+println(&quot;Edge decay weights: &quot;, weights)
+
+println(&quot;\n=== Network Evolution ===&quot;)
+times = collect(0.0:10.0:100.0)
+stats = t_sna_stats(dnet, times; measures=[:density, :n_edges])
+for row in stats
+    println(&quot;t=$(row.time): $(Int(row.n_edges)) edges, &quot;,
+            &quot;density=$(round(row.density, digits=3))&quot;)
+end</code></pre><h2 id="Best-Practices"><a class="docs-heading-anchor" href="#Best-Practices">Best Practices</a><a id="Best-Practices-1"></a><a class="docs-heading-anchor-permalink" href="#Best-Practices" title="Permalink"></a></h2><ol><li><strong>Choose appropriate window sizes</strong>: Window sizes should match the timescale of interest in your research question</li><li><strong>Report multiple metrics</strong>: Use persistence, turnover, and duration together for a complete picture</li><li><strong>Consider censoring</strong>: Edge spells at the boundaries of the observation period may be censored (truncated)</li><li><strong>Use aggregation wisely</strong>: Union is most inclusive, intersection most conservative, weighted preserves duration information</li><li><strong>Check for empty windows</strong>: Some time windows may have no edges, producing division-by-zero or empty results</li><li><strong>Compare with expectations</strong>: Null models or benchmark values help interpret whether observed turnover is high or low</li></ol></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../paths/">« Temporal Paths</a><a class="docs-footer-nextpage" href="../../api/centrality/">Centrality »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Monday 13 July 2026 23:42">Monday 13 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
