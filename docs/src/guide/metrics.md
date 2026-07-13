@@ -288,7 +288,7 @@ end
 Collapse a dynamic network to a static network:
 
 ```julia
-using Network   # for ne on the aggregated static networks
+using Networks   # for ne on the aggregated static networks
 
 # Union: include any edge that was ever active
 static_union = t_aggregate(dnet; method=:union)

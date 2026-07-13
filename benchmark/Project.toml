@@ -6,13 +6,13 @@ TSNA = "d87fbcfe-12dd-4101-bd65-651c391eab70"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
-Network = {path = "../../Network.jl"}
+Networks = {path = "../Networks.jl"}
 NetworkDynamic = {path = "../../NetworkDynamic.jl"}
 SNA = {path = "../../SNA.jl"}
 TSNA = {path = ".."}
 
 [extras]
-Network = "027a387e-e55f-4537-a155-5037e5a23bdb"
+Networks = "027a387e-e55f-4537-a155-5037e5a23bdb"
 SNA = "199dfc94-006f-42e6-80fa-49ca4fc5f549"
 
 [compat]

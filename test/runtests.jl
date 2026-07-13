@@ -1,6 +1,6 @@
 using TSNA
 using NetworkDynamic
-using Network
+using Networks
 using Random
 using Test
 
@@ -433,5 +433,178 @@ end
         @test get_edge_attribute(w, :weight, 2, 3) ≈ 4.0
 
         @test_throws ArgumentError tAggregate(dnet; method=:bogus)
+    end
+
+    # =========================================================================
+    # Conversion invariants (see docs/src/guide/conversion_invariants.md)
+    #
+    # A ContactSequence has no slot for an unobserved dyad, so a masked
+    # DynamicNetwork is REJECTED rather than flattened into contacts that read
+    # as observed. t_aggregate inherits network_collapse's invariants, so the
+    # mask survives it.
+    # =========================================================================
+    @testset "Conversion invariants: as_contact_sequence" begin
+        for directed in (true, false)
+            dnet = DynamicNetwork(4; observation_start=0.0, observation_end=10.0,
+                                  directed=directed)
+            activate_vertices!(dnet, [1, 2, 3, 4], 0.0, 10.0)
+            activate!(dnet, 0.0, 4.0; edge=(1, 2))
+            activate!(dnet, 3.0, 6.0; edge=(1, 2))     # overlapping spell
+            activate!(dnet, 7.0, 7.0; edge=(2, 3))     # point spell
+
+            cs, rep = as_contact_sequence(dnet; report=true)
+
+            # Preserved: one contact per spell (overlaps stay separate), the
+            # vertex count, directedness, onsets and durations.
+            @test length(cs) == 3
+            @test cs.n_vertices == 4
+            @test cs.directed == directed
+            @test [c.time for c in cs] == [0.0, 3.0, 7.0]
+            @test [c.duration for c in cs] == [4.0, 3.0, 0.0]   # point spell = 0
+
+            # Dropped by nature, and named.
+            @test !is_lossless(rep)
+            @test :spell_censoring in dropped_fields(rep)
+            @test :vertex_spells in dropped_fields(rep)
+            @test :observation_period in dropped_fields(rep)
+            @test !(:missing_dyads in dropped_fields(rep))   # no mask here
+        end
+    end
+
+    @testset "Conversion invariants: as_contact_sequence rejects a masked network" begin
+        dnet = DynamicNetwork(4; observation_start=0.0, observation_end=10.0)
+        activate_vertices!(dnet, [1, 2, 3, 4], 0.0, 10.0)
+        activate!(dnet, 0.0, 5.0; edge=(1, 2))
+        activate!(dnet, 0.0, 5.0; edge=(2, 3))
+        set_missing_dyad!(dnet.network, 2, 3)     # masked, PRESENT face value
+        set_missing_dyad!(dnet.network, 3, 4)     # masked, ABSENT face value
+
+        # Default policy: refuse. A contact cannot say "unobserved".
+        @test_throws ArgumentError as_contact_sequence(dnet)
+        @test_throws ArgumentError as_contact_sequence(dnet; missing=:error)
+        @test_throws ArgumentError as_contact_sequence(dnet; missing=:bogus)
+
+        # Explicit opt-in, and the report says what that cost.
+        cs, rep = as_contact_sequence(dnet; missing=:face, report=true)
+        @test length(cs) == 2
+        @test :missing_dyads in dropped_fields(rep)
+
+        # Clearing the mask makes the network observed, and it converts.
+        clear_missing_dyads!(dnet.network)
+        @test length(as_contact_sequence(dnet)) == 2
+    end
+
+    @testset "Conversion invariants: t_aggregate carries the mask" begin
+        for directed in (true, false)
+            net = network(5; directed=directed, loops=true)
+            add_edge!(net, 1, 2)
+            add_edge!(net, 2, 3)
+            add_edge!(net, 3, 3)
+            set_vertex_attribute!(net, :grp, 1, "a")
+            set_network_attribute!(net, :title, "demo")
+            set_missing_dyad!(net, 2, 3)          # PRESENT face value
+            set_missing_dyad!(net, 4, 5)          # ABSENT face value
+            dnet = as_dynamic_network(net; onset=0.0, terminus=10.0)
+
+            for method in (:union, :intersection, :weighted)
+                agg, rep = t_aggregate(dnet; method=method, report=true)
+                @test is_directed(agg) == directed
+                @test agg.loops
+                @test has_edge(agg, 3, 3)                    # self-loop survives
+                @test get_vertex_attribute(agg, :grp, 1) == "a"
+                @test get_network_attribute(agg, :title) == "demo"
+                # THE regression: the mask must not aggregate away to zero.
+                @test n_missing_dyads(agg) == 2
+                @test is_missing_dyad(agg, 2, 3)
+                @test is_missing_dyad(agg, 4, 5)
+                @test has_edge(agg, 2, 3) && !has_edge(agg, 4, 5)
+                @test :spells in dropped_fields(rep)
+            end
+
+            @test get_edge_attribute(t_aggregate(dnet; method=:weighted),
+                                     :weight, 1, 2) == 10.0
+        end
+    end
+
+    @testset "Batch temporal paths (TSNA.jl#1)" begin
+        # An all-source analysis runs one search per vertex. Each search used to
+        # allocate its own arrival/parent/settled/heap; a workspace reuses them.
+        # The results must be IDENTICAL — this is a pure allocation change.
+
+        rng = Random.Xoshiro(11)
+        n = 25
+        dn = DynamicNetwork(n; observation_start=0.0, observation_end=100.0,
+                            directed=true)
+        for v in 1:n
+            activate!(dn, 0.0, 100.0; vertex=v)
+        end
+        for _ in 1:120
+            i, j = rand(rng, 1:n), rand(rng, 1:n)
+            i == j && continue
+            onset = round(80 * rand(rng); digits=2)
+            activate!(dn, onset, min(100.0, onset + round(20 * rand(rng); digits=2));
+                      edge=(i, j))
+        end
+
+        @testset "batch == per-source loop, exactly" begin
+            batch = earliest_arrival_all(dn, 0.0)
+            for v in 1:n
+                single, _ = earliest_arrival(dn, v, 0.0)
+                @test batch[v] == single          # same keys AND same times
+            end
+            @test length(batch) == n
+        end
+
+        @testset "the workspace is genuinely reused" begin
+            ws = TemporalPathWorkspace{Int, Float64}()
+            a1, _ = earliest_arrival!(ws, dn, 1, 0.0)
+            snapshot = copy(a1)
+            # The returned dict ALIASES the workspace: the next search overwrites
+            # it. That is the documented contract, and the reason the batch entry
+            # point copies before moving on.
+            a2, _ = earliest_arrival!(ws, dn, 2, 0.0)
+            @test a2 === a1                        # same container, reused
+            ref2, _ = earliest_arrival(dn, 2, 0.0) # fresh search agrees
+            @test a2 == ref2
+            # ...and the reuse did not corrupt the second search with the first's
+            # state (the bug a workspace invites)
+            @test snapshot == earliest_arrival(dn, 1, 0.0)[1]
+        end
+
+        @testset "an early target break leaves a clean workspace" begin
+            # The heap is NOT drained when a search stops early at `target`, so
+            # the reset has to clear it or the next search inherits stale labels.
+            ws = TemporalPathWorkspace{Int, Float64}()
+            earliest_arrival!(ws, dn, 1, 0.0; target=3)     # may break early
+            a, _ = earliest_arrival!(ws, dn, 5, 0.0)        # full search after it
+            @test a == earliest_arrival(dn, 5, 0.0)[1]
+        end
+
+        @testset "distance and reachability matrices" begin
+            D = temporal_distance_matrix(dn, 0.0)
+            R = reachability_matrix(dn, 0.0)
+            @test size(D) == (n, n) && size(R) == (n, n)
+            for v in 1:n
+                @test D[v, v] == 0.0
+                @test R[v, v]
+            end
+            # Agree with the single-source functions they batch
+            for i in 1:n, j in 1:n
+                td = temporal_distance(dn, i, j, 0.0)
+                @test D[i, j] == td
+                @test R[i, j] == !isnothing(td) || (i == j)
+            end
+        end
+
+        @testset "fewer allocations than the naive loop" begin
+            # The point of the exercise. Warm up first: a cold call measures
+            # compilation, not the algorithm.
+            earliest_arrival_all(dn, 0.0)
+            [earliest_arrival(dn, v, 0.0) for v in 1:n]
+
+            batched = @allocated earliest_arrival_all(dn, 0.0)
+            naive = @allocated [earliest_arrival(dn, v, 0.0) for v in 1:n]
+            @test batched < naive
+        end
     end
 end

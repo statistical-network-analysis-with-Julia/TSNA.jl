@@ -27,6 +27,20 @@ forward_reachable_set
 backward_reachable_set
 ```
 
+## Batch and In-Place Computation
+
+All-pairs routines and the reusable workspace behind them. `earliest_arrival!`
+writes into a caller-supplied [`TemporalPathWorkspace`](@ref) so that a sweep
+over many sources allocates once rather than once per source.
+
+```@docs
+TemporalPathWorkspace
+earliest_arrival!
+earliest_arrival_all
+temporal_distance_matrix
+reachability_matrix
+```
+
 ## Contact Sequence Conversion
 
 ```@docs
@@ -41,6 +55,7 @@ name; both spellings are interchangeable.
 ```@docs
 tPath
 earliestArrival
+earliestArrivalAll
 temporalDistance
 temporalPath
 shortestTemporalPath

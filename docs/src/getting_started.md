@@ -8,13 +8,13 @@ Install TSNA.jl from GitHub:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Network.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Networks.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/SNA.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/TSNA.jl")
 ```
 
-TSNA.jl depends on NetworkDynamic.jl, Network.jl, and SNA.jl, which will be installed automatically.
+TSNA.jl depends on NetworkDynamic.jl, Networks.jl, and SNA.jl, which will be installed automatically.
 
 ## Basic Workflow
 
@@ -30,7 +30,7 @@ The typical TSNA.jl workflow consists of four steps:
 TSNA.jl operates on `DynamicNetwork` objects from NetworkDynamic.jl:
 
 ```julia
-using Network   # nv, ne on snapshots
+using Networks   # nv, ne on snapshots
 using NetworkDynamic
 using TSNA
 

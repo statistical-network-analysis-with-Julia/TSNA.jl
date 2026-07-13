@@ -66,7 +66,7 @@ and reachability queries on the same network are fast.
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Network.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Networks.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/SNA.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/TSNA.jl")

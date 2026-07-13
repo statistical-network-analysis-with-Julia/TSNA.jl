@@ -182,7 +182,7 @@ target is settled.
 The forward reachable set contains all vertices that can be reached from a source starting at a given time:
 
 ```julia
-using Network   # for nv
+using Networks   # for nv
 
 # Who can vertex 1 reach starting at t=0?
 reachable = forward_reachable_set(dnet, 1, 0.0)

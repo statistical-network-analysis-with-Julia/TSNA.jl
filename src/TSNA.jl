@@ -22,7 +22,7 @@ module TSNA
 using DataStructures: BinaryMinHeap
 using Dates
 using Graphs
-using Network
+using Networks
 using NetworkDynamic
 using SNA
 using Statistics
@@ -31,6 +31,12 @@ using Statistics
 export TemporalPath, tPath, path_duration
 export temporal_distance, temporalDistance
 export earliest_arrival, earliestArrival
+
+# Batch / all-source temporal paths: one reused workspace instead of one set of
+# scratch containers per source (TSNA.jl#1)
+export TemporalPathWorkspace, earliest_arrival!
+export earliest_arrival_all, earliestArrivalAll
+export temporal_distance_matrix, reachability_matrix
 export forward_reachable_set, forwardReachableSet
 export backward_reachable_set, backwardReachableSet
 export temporal_path, temporalPath
@@ -165,11 +171,35 @@ Base.iterate(cs::ContactSequence, state=1) =
     state > length(cs) ? nothing : (cs.contacts[state], state + 1)
 
 """
-    as_contact_sequence(dnet::DynamicNetwork) -> ContactSequence
+    as_contact_sequence(dnet::DynamicNetwork; missing=:error, report=false) -> ContactSequence
 
-Convert a dynamic network's edge spells to a contact sequence.
+Convert a dynamic network's edge spells to a contact sequence: one `Contact`
+per edge spell, carrying its onset and duration. Overlapping spells on the
+same edge stay separate contacts; a point spell `[t,t)` becomes a contact of
+zero duration.
+
+# Conversion invariants
+
+Preserved: the vertex count, directedness, and every edge spell's onset and
+duration (so the spell set is reconstructable).
+
+A `ContactSequence` has no slot for the rest of the dynamic network, so the
+conversion is lossy by nature: **spell censoring flags**, **vertex activity
+spells** (actor presence/composition), static and time-varying attributes, and
+the observation window are dropped. Pass `report=true` for
+`(cs, ::Networks.ConversionReport)` naming them.
+
+A `Contact` cannot record that a dyad is *unobserved*, so a network with a
+missing-dyad mask is **rejected** by default (`missing=:error`) rather than
+being flattened into contacts that read as observed. Pass `missing=:face` to
+convert the recorded face values anyway (the mask is then dropped, and the
+report says so).
 """
-function as_contact_sequence(dnet::DynamicNetwork{T, Time}) where {T, Time}
+function as_contact_sequence(dnet::DynamicNetwork{T, Time};
+                             missing::Symbol=:error,
+                             report::Bool=false) where {T, Time}
+    require_observed(dnet.network, missing; context="as_contact_sequence")
+
     contacts = Contact{T, Time}[]
 
     for ((i, j), spells) in dnet.edge_spells
@@ -179,7 +209,28 @@ function as_contact_sequence(dnet::DynamicNetwork{T, Time}) where {T, Time}
         end
     end
 
-    return ContactSequence(contacts, Int(nv(dnet)); directed=is_directed(dnet))
+    cs = ContactSequence(contacts, Int(nv(dnet)); directed=is_directed(dnet))
+
+    rep = ConversionReport(:DynamicNetwork, :ContactSequence)
+    record_drop!(rep, :spell_censoring,
+                 "a Contact records onset and duration only; onset/terminus " *
+                 "censoring flags have no slot")
+    record_drop!(rep, :vertex_spells,
+                 "vertex activity (actor presence/composition) is not " *
+                 "representable in a contact sequence")
+    record_drop!(rep, :attributes,
+                 "static and time-varying vertex/edge/network attributes are " *
+                 "not carried")
+    record_drop!(rep, :observation_period,
+                 "the observation window $(dnet.observation_period) has no " *
+                 "contact-sequence counterpart")
+    n_mask = n_missing_dyads(dnet.network)
+    n_mask > 0 && record_drop!(rep, :missing_dyads,
+                               "$n_mask masked dyad(s) converted at face value " *
+                               "under missing=:face; the contacts do not record " *
+                               "that they are unobserved")
+
+    return report ? (cs, rep) : cs
 end
 
 # =============================================================================
@@ -261,19 +312,82 @@ Also available under the R-style alias `earliestArrival`.
 function earliest_arrival(dnet::DynamicNetwork{T, Time}, source::T, start_time;
                           end_time=dnet.observation_period[2],
                           target::Union{Nothing, T}=nothing) where {T, Time}
+    ws = TemporalPathWorkspace{T, Time}()
+    return earliest_arrival!(ws, dnet, source, start_time;
+                             end_time=end_time, target=target)
+end
+
+"""
+    TemporalPathWorkspace{T, Time}()
+
+Reusable scratch space for the earliest-arrival search: the arrival and parent
+maps, the settled set, and the heap.
+
+A single-source search allocates all four containers. An **all-source** analysis
+(temporal closeness, betweenness, `backward_reachable_set`, a reachability
+matrix) runs one search per vertex, so it pays that allocation `nv(dnet)` times
+over — even though the searches are independent and none of the scratch outlives
+its own search. A workspace is filled, read, and emptied once per source instead.
+
+Pass one to [`earliest_arrival!`](@ref), or use the batch entry points
+([`earliest_arrival_all`](@ref), [`temporal_distance_matrix`](@ref),
+[`reachability_matrix`](@ref)), which manage it for you.
+
+The memoized contact index is shared across searches regardless (it is cached on
+the network); the workspace is about the *per-search* containers.
+"""
+struct TemporalPathWorkspace{T, Time}
+    arrival::Dict{T, Time}
+    parent::Dict{T, Tuple{T, Time}}
+    settled::Set{T}
+    heap::BinaryMinHeap{Tuple{Time, T}}
+end
+
+TemporalPathWorkspace{T, Time}() where {T, Time} =
+    TemporalPathWorkspace{T, Time}(Dict{T, Time}(), Dict{T, Tuple{T, Time}}(),
+                                   Set{T}(), BinaryMinHeap{Tuple{Time, T}}())
+
+function _reset!(ws::TemporalPathWorkspace)
+    empty!(ws.arrival)
+    empty!(ws.parent)
+    empty!(ws.settled)
+    # BinaryMinHeap has no `empty!`; drain it. It is empty already whenever the
+    # previous search ran to exhaustion, so this only costs anything after an
+    # early `target` break.
+    while !isempty(ws.heap)
+        pop!(ws.heap)
+    end
+    return ws
+end
+
+"""
+    earliest_arrival!(ws::TemporalPathWorkspace, dnet, source, start_time;
+                      end_time=observation end, target=nothing)
+        -> (arrival::Dict, parent::Dict)
+
+In-place [`earliest_arrival`](@ref): runs the same search, reusing `ws`'s
+containers instead of allocating fresh ones.
+
+**The returned dictionaries alias `ws`** and are overwritten by the next search
+on the same workspace. Copy what you need to keep, or use
+[`earliest_arrival_all`](@ref), which does that for you.
+"""
+function earliest_arrival!(ws::TemporalPathWorkspace{T, Time},
+                           dnet::DynamicNetwork{T, Time}, source::T, start_time;
+                           end_time=dnet.observation_period[2],
+                           target::Union{Nothing, T}=nothing) where {T, Time}
     start_time = convert(Time, start_time)
     end_time = convert(Time, end_time)
     out = _contact_index(dnet)
     no_contacts = Tuple{T, Spell{Time}}[]
 
-    arrival = Dict{T, Time}(source => start_time)
-    parent = Dict{T, Tuple{T, Time}}()
-    settled = Set{T}()
+    _reset!(ws)
+    arrival, parent, settled, heap = ws.arrival, ws.parent, ws.settled, ws.heap
+    arrival[source] = start_time
 
     # Label-setting search (Dijkstra with a binary min-heap and lazy
     # deletion; boarding times never precede the label being settled, so
     # labels are final once popped)
-    heap = BinaryMinHeap{Tuple{Time, T}}()
     push!(heap, (start_time, source))
 
     while !isempty(heap)
@@ -295,6 +409,91 @@ function earliest_arrival(dnet::DynamicNetwork{T, Time}, source::T, start_time;
     end
 
     return arrival, parent
+end
+
+"""
+    earliest_arrival_all(dnet, start_time; sources=all vertices,
+                         end_time=observation end) -> Dict{T, Dict{T, Time}}
+
+Earliest-arrival times **from every source in one pass**, reusing a single
+[`TemporalPathWorkspace`](@ref) across the searches.
+
+The searches are independent, so the result is identical to calling
+[`earliest_arrival`](@ref) per source — but the scratch containers are allocated
+once rather than once per source, and the memoized contact index is built at most
+once. This is the entry point for any all-source analysis (temporal closeness,
+betweenness, reachability); running the single-source function in a loop is the
+pattern this exists to replace.
+
+Each source's arrival map is copied out of the workspace before the next search
+overwrites it, so the returned dictionaries are independent and safe to keep.
+
+Also available under the R-style alias `earliestArrivalAll`.
+"""
+function earliest_arrival_all(dnet::DynamicNetwork{T, Time}, start_time;
+                              sources=T.(1:nv(dnet)),
+                              end_time=dnet.observation_period[2]) where {T, Time}
+    ws = TemporalPathWorkspace{T, Time}()
+    result = Dict{T, Dict{T, Time}}()
+    for s in sources
+        arrival, _ = earliest_arrival!(ws, dnet, T(s), start_time; end_time=end_time)
+        result[T(s)] = copy(arrival)      # detach from the workspace
+    end
+    return result
+end
+
+"""
+    earliestArrivalAll
+
+R-style alias for [`earliest_arrival_all`](@ref).
+"""
+const earliestArrivalAll = earliest_arrival_all
+
+"""
+    temporal_distance_matrix(dnet, start_time; end_time=observation end)
+        -> Matrix{Union{Time, Nothing}}
+
+All-pairs temporal distances (elapsed time of the earliest time-respecting path,
+`arrival − start_time`), in one batched pass. `nothing` where no path exists
+within the window; zero on the diagonal.
+
+Computed with a single reused workspace via [`earliest_arrival_all`](@ref)
+rather than `nv(dnet)²` independent [`temporal_distance`](@ref) calls.
+"""
+function temporal_distance_matrix(dnet::DynamicNetwork{T, Time}, start_time;
+                                  end_time=dnet.observation_period[2]) where {T, Time}
+    n = nv(dnet)
+    t0 = convert(Time, start_time)
+    all_arr = earliest_arrival_all(dnet, t0; end_time=end_time)
+    D = Matrix{Union{Time, Nothing}}(nothing, n, n)
+    for i in 1:n
+        arr = all_arr[T(i)]
+        for j in 1:n
+            haskey(arr, T(j)) && (D[i, j] = arr[T(j)] - t0)
+        end
+    end
+    return D
+end
+
+"""
+    reachability_matrix(dnet, start_time; end_time=observation end) -> BitMatrix
+
+`R[i, j]` is `true` when a time-respecting path runs from `i` to `j` within the
+window (the diagonal is `true`). One batched pass; see
+[`earliest_arrival_all`](@ref).
+"""
+function reachability_matrix(dnet::DynamicNetwork{T, Time}, start_time;
+                             end_time=dnet.observation_period[2]) where {T, Time}
+    n = nv(dnet)
+    all_arr = earliest_arrival_all(dnet, start_time; end_time=end_time)
+    R = falses(n, n)
+    for i in 1:n
+        arr = all_arr[T(i)]
+        for j in 1:n
+            R[i, j] = haskey(arr, T(j))
+        end
+    end
+    return R
 end
 
 """
@@ -363,6 +562,11 @@ Also available under the R-style alias `backwardReachableSet`.
 """
 function backward_reachable_set(dnet::DynamicNetwork{T, Time}, target::T, end_time;
                                 start_time=dnet.observation_period[1]) where {T, Time}
+    # One search per vertex — the all-source pattern. Reuse a single workspace
+    # rather than allocating the arrival/parent/settled/heap containers nv(dnet)
+    # times over. (`target` still short-circuits each search, so this keeps the
+    # early exit; only the allocation is shared.)
+    ws = TemporalPathWorkspace{T, Time}()
     reachable = T[]
     for v in 1:nv(dnet)
         vT = T(v)
@@ -370,8 +574,8 @@ function backward_reachable_set(dnet::DynamicNetwork{T, Time}, target::T, end_ti
             push!(reachable, vT)
             continue
         end
-        arrival, _ = earliest_arrival(dnet, vT, start_time;
-                                      end_time=end_time, target=target)
+        arrival, _ = earliest_arrival!(ws, dnet, vT, start_time;
+                                       end_time=end_time, target=target)
         haskey(arrival, target) && push!(reachable, vT)
     end
     return reachable
@@ -960,7 +1164,7 @@ R-style alias for [`window_sna_stats`](@ref).
 const windowSnaStats = window_sna_stats
 
 """
-    t_aggregate(dnet::DynamicNetwork; method=:union, onset=..., terminus=...)
+    t_aggregate(dnet::DynamicNetwork; method=:union, onset=..., terminus=..., report=false)
 
 Collapse the dynamic network into a static one.
 
@@ -969,19 +1173,28 @@ Collapse the dynamic network into a static one.
 - `:weighted` — union, with each edge's total active time (in the window,
   clipped) stored as its `:weight` attribute
 
+This is `NetworkDynamic.network_collapse` with an aggregation rule, and it
+inherits its conversion invariants: vertex IDs are stable, so directedness,
+`loops`, two-mode metadata, static attributes and the **missing-dyad mask** all
+survive; spells, time-varying attributes and the observation window are dropped
+by nature. Pass `report=true` for `(net, ::Networks.ConversionReport)`.
+
 Also available under the R-style alias `tAggregate`.
 """
 function t_aggregate(dnet::DynamicNetwork{T, Time}; method::Symbol=:union,
                      onset=dnet.observation_period[1],
-                     terminus=dnet.observation_period[2]) where {T, Time}
+                     terminus=dnet.observation_period[2],
+                     report::Bool=false) where {T, Time}
     onset, terminus = convert(Time, onset), convert(Time, terminus)
 
-    if method == :union
-        return network_collapse(dnet; onset=onset, terminus=terminus, rule=:any)
-    elseif method == :intersection
-        return network_collapse(dnet; onset=onset, terminus=terminus, rule=:all)
-    elseif method == :weighted
-        collapsed = network_collapse(dnet; onset=onset, terminus=terminus, rule=:any)
+    method in (:union, :intersection, :weighted) ||
+        throw(ArgumentError("method must be :union, :intersection, or :weighted"))
+
+    rule = method == :intersection ? :all : :any
+    collapsed, rep = network_collapse(dnet; onset=onset, terminus=terminus,
+                                      rule=rule, report=true)
+
+    if method == :weighted
         for (edge, spells) in dnet.edge_spells
             total = 0.0
             for s in spells
@@ -993,10 +1206,9 @@ function t_aggregate(dnet::DynamicNetwork{T, Time}; method::Symbol=:union,
                 set_edge_attribute!(collapsed, :weight, edge[1], edge[2], total)
             end
         end
-        return collapsed
-    else
-        throw(ArgumentError("method must be :union, :intersection, or :weighted"))
     end
+
+    return report ? (collapsed, rep) : collapsed
 end
 
 """

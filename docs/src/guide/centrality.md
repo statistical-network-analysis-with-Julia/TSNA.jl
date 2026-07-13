@@ -105,7 +105,7 @@ bet_norm = t_betweenness(dnet, 50.0; normalized=true)
 ### Temporal Brokerage Analysis
 
 ```julia
-using Network   # for nv
+using Networks   # for nv
 
 # Track betweenness over time to find when vertices serve as brokers
 times = collect(0.0:5.0:100.0)

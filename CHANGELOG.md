@@ -55,6 +55,13 @@ functions changed *return types or semantics*, under both spellings:
 
 ### Added
 
+- **Conversion invariants, published and enforced** (issue #1). `t_aggregate`
+  and `as_contact_sequence` accept `report=true`, returning
+  `(result, ::Networks.ConversionReport)` naming everything they dropped;
+  `as_contact_sequence` also takes the ecosystem `missing=:error`/`:face`
+  policy. The per-path table lives in Networks.jl
+  `docs/src/guide/conversion_invariants.md`.
+
 - `earliest_arrival(dnet, source, start_time; end_time, target)` — the new
   heap-based (Dijkstra-style label-setting) earliest-arrival core returning
   `(arrival, parent)` dictionaries; all path/reachability functions
@@ -65,6 +72,16 @@ functions changed *return types or semantics*, under both spellings:
 - `TemporalPath` result type with `path_duration` returning a proper time
   difference (works for `Date`/`DateTime` axes).
 - BenchmarkTools suite (`benchmark/`) exercising `earliest_arrival`.
+
+### Fixed
+
+- **`as_contact_sequence` silently flattened masked dyads into contacts that
+  read as observed.** A `Contact` cannot say "unobserved", so a masked dynamic
+  network is now rejected (`missing=:error`) unless the caller opts in with
+  `missing=:face`.
+- **`t_aggregate` lost the missing-dyad mask, the network attributes and the
+  `loops` flag** (via `network_collapse`, now fixed there). Aggregating a
+  partially observed network no longer reports it as fully observed.
 
 ### Changed
 

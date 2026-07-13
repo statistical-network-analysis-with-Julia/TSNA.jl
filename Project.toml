@@ -1,19 +1,19 @@
 name = "TSNA"
 uuid = "d87fbcfe-12dd-4101-bd65-651c391eab70"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Statistical Network Analysis with Julia"]
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
-Network = "027a387e-e55f-4537-a155-5037e5a23bdb"
+Networks = "027a387e-e55f-4537-a155-5037e5a23bdb"
 NetworkDynamic = "2ec8e4a1-edb9-4657-8cef-4d333c164b0b"
 SNA = "199dfc94-006f-42e6-80fa-49ca4fc5f549"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [sources]
-Network = {path = "../Network.jl"}
+Networks = {path = "../Networks.jl"}
 NetworkDynamic = {path = "../NetworkDynamic.jl"}
 SNA = {path = "../SNA.jl"}
 
@@ -21,9 +21,9 @@ SNA = {path = "../SNA.jl"}
 DataStructures = "0.18, 0.19"
 Dates = "1.11.0"
 Graphs = "1.9"
-Network = "0.1"
-NetworkDynamic = "0.1"
-SNA = "0.1"
+Networks = "0.2"
+NetworkDynamic = "0.2"
+SNA = "0.2"
 Statistics = "1.11.1"
 julia = "1.12"
 

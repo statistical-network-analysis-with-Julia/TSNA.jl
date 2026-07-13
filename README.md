@@ -23,11 +23,11 @@ This package is a Julia port of the R `tsna` package from the StatNet collection
 ## Installation
 
 Requires Julia 1.12+. TSNA.jl depends on the unregistered
-[Network.jl](https://github.com/statistical-network-analysis-with-Julia/Network.jl), [NetworkDynamic.jl](https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl), and [SNA.jl](https://github.com/statistical-network-analysis-with-Julia/SNA.jl) packages, which must be added first (in this order):
+[Networks.jl](https://github.com/statistical-network-analysis-with-Julia/Networks.jl), [NetworkDynamic.jl](https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl), and [SNA.jl](https://github.com/statistical-network-analysis-with-Julia/SNA.jl) packages, which must be added first (in this order):
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Network.jl")
+Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/Networks.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/NetworkDynamic.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/SNA.jl")
 Pkg.add(url="https://github.com/statistical-network-analysis-with-Julia/TSNA.jl")
