@@ -167,3 +167,18 @@ TSNA
 3. Holme, P., Saramaki, J. (2012). Temporal networks. *Physics Reports*, 519(3), 97-125.
 
 4. Nicosia, V., Tang, J., Mascolo, C., Musolesi, M., Russo, G., Latora, V. (2013). Graph metrics for temporal networks. In *Temporal Networks* (pp. 15-40). Springer.
+
+## Citation
+
+If you use TSNA.jl in your work, please cite it using the entry in
+[`CITATION.bib`](https://github.com/statistical-network-analysis-with-Julia/TSNA.jl/blob/main/CITATION.bib):
+
+```biblatex
+@misc{SNWJTSNAJL,
+  author = {{Statistical Network Analysis with Julia}},
+  title = {TSNA.jl: Temporal Social Network Analysis for Julia},
+  year = {2026},
+  url = {https://github.com/statistical-network-analysis-with-Julia/TSNA.jl},
+  note = {Homepage: https://statistical-network-analysis-with-Julia.github.io/TSNA.jl; GitHub: https://github.com/statistical-network-analysis-with-Julia}
+}
+```

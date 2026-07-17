@@ -226,6 +226,21 @@ For more detailed documentation, see:
 
 3. Holme, P., Saramaki, J. (2012). Temporal networks. *Physics Reports*, 519(3), 97-125.
 
+## Citation
+
+If you use TSNA.jl in your work, please cite it using the entry in
+[`CITATION.bib`](CITATION.bib):
+
+```biblatex
+@misc{SNWJTSNAJL,
+  author = {{Statistical Network Analysis with Julia}},
+  title = {TSNA.jl: Temporal Social Network Analysis for Julia},
+  year = {2026},
+  url = {https://github.com/statistical-network-analysis-with-Julia/TSNA.jl},
+  note = {Homepage: https://statistical-network-analysis-with-Julia.github.io/TSNA.jl; GitHub: https://github.com/statistical-network-analysis-with-Julia}
+}
+```
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
