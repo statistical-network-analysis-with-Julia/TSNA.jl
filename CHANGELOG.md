@@ -107,6 +107,8 @@ functions changed *return types or semantics*, under both spellings:
 
 ### Changed
 
+- Documentation uses the default Documenter themes, with a new package-specific
+  SVG icon and browser favicon in the official Julia logo colors.
 - Public API renamed to snake_case primaries with every R-style camelCase
   name kept as an exported `const` alias — both spellings work:
   `earliest_arrival`↤`earliestArrival`, `temporal_distance`,
